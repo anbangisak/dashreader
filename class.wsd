@@ -1,27 +1,27 @@
-@startuml dashclient
+@startuml dashreader
 package StatzAgg {
     interface StatzAgg {
-        + PostHTTPClientStats(HTTPClientStatz)
+        + PostEventStats(EventStats)
     }
+    
 }
 package dashreader {
     class ChunkURL {
     }
     class ChunkURLChannel {
     }
-    interface DASHReaderContext {
-        + SetRepresentationSelector(RepresentationSelector)
+    interface ReaderContext {
         + NextURL() (ChunkURL,error)
         + GetURLs() (ChunkURLChannel,error)
     }
-    interface DASHReader {
+    interface Reader {
         + Update(MPD)
-        + MakeDASHReaderContext(DASHReaderContext, StreamSelector, StringNoWhitespaceType) (DASHReaderContext, error)
+        + MakeDASHReaderContext(ReaderContext, StreamSelector, RepresentationSelector) (ReaderContext, error)
     }
-    class DASHReaderBaseContext { 
+    class ReaderFactory {
+    }
+    class readerBaseContext { 
         + GetURLs() (ChunkURLChannel,error)      
-    }
-    class DASHReaderFactory {
     }
     class StreamSelector {
     }
@@ -31,21 +31,21 @@ package dashreader {
     }
     class RepresentationSelector {
     }
-    class DASHReaderLiveMPDUpdate {
-        + MakeDASHReaderContext(DASHReaderContext, uint, StringNoWhitespaceType) (DASHReaderContext, error)
+    class readerLiveMPDUpdate {
+        + MakeDASHReaderContext(ReaderContext, uint, StringNoWhitespaceType) (ReaderContext, error)
     }
-    DASHReaderContext ^-- DASHReaderBaseContext : Default
-    DASHReaderBaseContext ^-- DASHReaderLiveMPDUpdateContext : For Live with MPD Update/SegTimeline
-    DASHReader ^-- DASHReaderBase: Default
-    DASHReaderBase ^-- DASHReaderBaseExtn : for MPD update handling
-    DASHReaderBaseExtn ^-- DASHReaderLiveMPDUpdate : For Live with MPD Update/SegTimeline
-    DASHReaderLiveMPDUpdate --> DASHReaderLiveMPDUpdateContext : Create/Update
-    DASHReaderFactory --> DASHReaderLiveMPDUpdate : Create
-    DASHReaderContext --> ChunkURLChannel : Create
-    DASHReaderContext --> ChunkURL : Produce
-    DASHReaderLiveMPDUpdateContext --> StatzAgg : Produce Events
-    DASHReaderLiveMPDUpdateContext --> StreamSelection : Filter Representations
-    DASHReaderBaseExtn --> RepresentationSelector : Select Representation
+    ReaderContext ^-- readerBaseContext : Default
+    readerBaseContext ^-- readerLiveMPDUpdateContext : For Live with MPD Update/SegTimeline
+    Reader ^-- readerBase: Default
+    readerBase ^-- readerBaseExtn : for MPD update handling
+    readerBaseExtn ^-- readerLiveMPDUpdate : For Live with MPD Update/SegTimeline
+    readerLiveMPDUpdate --> readerLiveMPDUpdateContext : Create/Update
+    ReaderFactory --> readerLiveMPDUpdate : Create
+    ReaderContext --> ChunkURLChannel : Create
+    ReaderContext --> ChunkURL : Produce
+    readerLiveMPDUpdateContext --> StatzAgg : Produce Events
+    readerBaseContext --> StreamSelection : Filter Representations
+    readerBaseContext --> RepresentationSelector : Select Representation
     MinBWRepresentationSelector ^-- RepresentationSelector : Opt for Min BW
     MaxBWRepresentationSelector ^-- RepresentationSelector : Opt for Min BW
 }
@@ -57,11 +57,11 @@ package consumer {
     class CustomRepresentationSelector{
     }
     client --> StreamSelectorList : 1. NewStreamSelectorList(filename)
-    client --> DASHReaderFactory : 2. GetDASHReader(MPD)   
+    client --> ReaderFactory : 2. GetDASHReader(MPD)   
     client --> StreamSelectorList : 3. GetStream(contentType)    
-    client --> DASHReader: 4,8. MakeDASHReaderContext(AdaptSet, StreamSelector, CustomRepresentationSelector)
-    client --> DASHReaderContext : 5,9. GetURLs()
+    client --> Reader: 4,8. MakeDASHReaderContext(AdaptSet, StreamSelector, CustomRepresentationSelector)
+    client --> ReaderContext : 5,9. GetURLs()
     client --> ChunkURLChannel : 6. Consume from Channel
-    client --> DASHReader: 7. Update(MPD)
+    client --> Reader: 7. Update(MPD)
 }
 @enduml

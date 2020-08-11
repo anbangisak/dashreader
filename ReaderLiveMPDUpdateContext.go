@@ -13,9 +13,9 @@ import (
 	"github.com/eswarantg/statzagg"
 )
 
-//DASHReaderLiveMPDUpdateContext - DASHReaderLiveMPDUpdate Context for
-type DASHReaderLiveMPDUpdateContext struct {
-	DASHReaderBaseContext
+//readerLiveMPDUpdateContext - readerLiveMPDUpdate Context for
+type readerLiveMPDUpdateContext struct {
+	readerBaseContext
 
 	baseWcTime time.Time           //BaseTime for SegmentTimeline
 	timeline   SegmentTimelineType //SegmentTimeline - Active
@@ -34,7 +34,7 @@ type DASHReaderLiveMPDUpdateContext struct {
 	startNumber          uint   //Number elapsed
 }
 
-func (c *DASHReaderLiveMPDUpdateContext) adjustRepUpdate(reader DASHReaderBase, curMpd *MPDtype) error {
+func (c *readerLiveMPDUpdateContext) adjustRepUpdate(reader readerBase, curMpd *MPDtype) error {
 	//Can be better ... for now recompute livePointLocate
 	c.livePointLocate(reader, curMpd)
 	return nil
@@ -42,7 +42,7 @@ func (c *DASHReaderLiveMPDUpdateContext) adjustRepUpdate(reader DASHReaderBase, 
 
 //moveToWallClock - Usred to adjust to wallClock
 // Set the context so that next URL fetch will return required values
-func (c *DASHReaderLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error {
+func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error {
 	//c.baseWcTime - Reference Time
 	//c.elapsedDurationTicks is record base time from baseTime
 	//c.chunkTimeTicks is entry from base time for record
@@ -53,7 +53,7 @@ func (c *DASHReaderLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error 
 		if c.curSegTimeLineEntry >= len(c.timeline.S) {
 			if wallClock != nil {
 				entryStartTime := c.baseWcTime.Add(time.Duration(float64(c.elapsedDurationTicks+c.chunkTimeTicks)*1000000/float64(c.timescale)) * time.Microsecond)
-				log.Printf("%v Start%v <= WC:%v", c.DASHReaderBaseContext.ID, entryStartTime.UTC(), wallClock.UTC())
+				log.Printf("%v Start%v <= WC:%v", c.readerBaseContext.ID, entryStartTime.UTC(), wallClock.UTC())
 			}
 			return fmt.Errorf("EndOfSegmentTimeline")
 		}
@@ -90,10 +90,10 @@ func (c *DASHReaderLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error 
 					values := make([]interface{}, 2)
 					values[0] = c.elapsedDurationTicks
 					values[1] = entry.T
-					if c.DASHReaderBaseContext.StatzAgg != nil {
-						(*c.DASHReaderBaseContext.StatzAgg).PostEventStats(context.TODO(), &statzagg.EventStats{
+					if c.readerBaseContext.StatzAgg != nil {
+						(*c.readerBaseContext.StatzAgg).PostEventStats(context.TODO(), &statzagg.EventStats{
 							EventClock: time.Now(),
-							ID:         c.DASHReaderBaseContext.ID,
+							ID:         c.readerBaseContext.ID,
 							Name:       EvtMp4DurationGapFilled,
 							Values:     values,
 						})
@@ -109,7 +109,7 @@ func (c *DASHReaderLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error 
 		if wallClock != nil {
 			//StartTime matches
 			if wallClock.Equal(entryStartTime) {
-				log.Printf("%v WC:%v == Start:%v", c.DASHReaderBaseContext.ID, wallClock.UTC(), entryStartTime.UTC())
+				log.Printf("%v WC:%v == Start:%v", c.readerBaseContext.ID, wallClock.UTC(), entryStartTime.UTC())
 				//Found record
 				return nil
 			}
@@ -117,10 +117,10 @@ func (c *DASHReaderLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error 
 				values := make([]interface{}, 2)
 				values[0] = wallClock
 				values[1] = entryStartTime
-				if c.DASHReaderBaseContext.StatzAgg != nil {
-					(*c.DASHReaderBaseContext.StatzAgg).PostEventStats(context.TODO(), &statzagg.EventStats{
+				if c.readerBaseContext.StatzAgg != nil {
+					(*c.readerBaseContext.StatzAgg).PostEventStats(context.TODO(), &statzagg.EventStats{
 						EventClock: time.Now(),
-						ID:         c.DASHReaderBaseContext.ID,
+						ID:         c.readerBaseContext.ID,
 						Name:       EvtMPDTimelineInFuture,
 						Values:     values,
 					})
@@ -131,11 +131,11 @@ func (c *DASHReaderLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error 
 			//EndTime in Future
 			entryEndTime := entryStartTime.Add(time.Duration(float64(entry.D)*1000000/float64(c.timescale)) * time.Microsecond)
 			if wallClock.Equal(entryEndTime) || wallClock.Before(entryEndTime) {
-				log.Printf("%v Start%v <= WC:%v <= End:%v", c.DASHReaderBaseContext.ID, entryStartTime.UTC(), wallClock.UTC(), entryEndTime.UTC())
+				log.Printf("%v Start%v <= WC:%v <= End:%v", c.readerBaseContext.ID, entryStartTime.UTC(), wallClock.UTC(), entryEndTime.UTC())
 				//Found record
 				return nil
 			}
-			//log.Printf("%v Start%v End:%v <= WC:%v", c.DASHReaderBaseContext.ID, entryStartTime.UTC(), entryEndTime.UTC(), wallClock.UTC())
+			//log.Printf("%v Start%v End:%v <= WC:%v", c.readerBaseContext.ID, entryStartTime.UTC(), entryEndTime.UTC(), wallClock.UTC())
 			c.curEntry++
 			c.chunkTimeTicks += entry.D
 			continue //Check next record
@@ -143,7 +143,7 @@ func (c *DASHReaderLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error 
 		//Just next record
 		c.curEntry++
 		c.chunkTimeTicks += entry.D
-		//log.Printf("%v Current moved to %v", c.DASHReaderBaseContext.ID, entryStartTime.UTC())
+		//log.Printf("%v Current moved to %v", c.readerBaseContext.ID, entryStartTime.UTC())
 		//wallClock is not nil
 		return nil
 	}
@@ -151,7 +151,7 @@ func (c *DASHReaderLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error 
 
 //livePointLocate - Locate the Live Point in the Current MPD
 // Set the context so that next URL fetch will return required values
-func (c *DASHReaderLiveMPDUpdateContext) livePointLocate(reader DASHReaderBase, curMpd *MPDtype) error {
+func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *MPDtype) error {
 	pSwc := reader.baseTime
 	pEwc := time.Time{}
 	//Use PT as the base time to compute live point ref
@@ -237,7 +237,7 @@ func (c *DASHReaderLiveMPDUpdateContext) livePointLocate(reader DASHReaderBase, 
 //Return:
 //  1: Current available url
 //  2: Error=io.EOF if not present
-func (c *DASHReaderLiveMPDUpdateContext) getURL() (ret *S, err error) {
+func (c *readerLiveMPDUpdateContext) getURL() (ret *S, err error) {
 	//Check if within given timeline
 	if c.curSegTimeLineEntry >= len(c.timeline.S) {
 		return nil, io.EOF
@@ -263,7 +263,7 @@ func (c *DASHReaderLiveMPDUpdateContext) getURL() (ret *S, err error) {
 // Return:
 //   1: Next URL
 //   2: error
-func (c DASHReaderLiveMPDUpdateContext) NextURL() (ret ChunkURL, err error) {
+func (c readerLiveMPDUpdateContext) NextURL() (ret ChunkURL, err error) {
 	var entry *S
 	if !c.binitURLServed {
 		c.binitURLServed = true

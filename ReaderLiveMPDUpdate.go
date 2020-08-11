@@ -5,14 +5,14 @@ import (
 	"reflect"
 )
 
-//DASHReaderLiveMPDUpdate - Implement Reader of MPD
+//readerLiveMPDUpdate - Implement Reader of MPD
 //  * Live
 //  * MPD Updating
 //  * SegmentTimeLine
 //  * $Time$ based url
 //  * $Number$ based url
-type DASHReaderLiveMPDUpdate struct {
-	DASHReaderBaseExtn
+type readerLiveMPDUpdate struct {
+	readerBaseExtn
 }
 
 //MakeDASHReaderContext - Makes Reader Context
@@ -23,13 +23,13 @@ type DASHReaderLiveMPDUpdate struct {
 // Return:
 //   1: Context for current AdaptationSet,Representation
 //   2: error
-func (r *DASHReaderLiveMPDUpdate) MakeDASHReaderContext(rdrCtx DASHReaderContext, streamSelector StreamSelector, repSelector RepresentationSelector) (DASHReaderContext, error) {
-	var curContext DASHReaderLiveMPDUpdateContext
+func (r *readerLiveMPDUpdate) MakeDASHReaderContext(rdrCtx ReaderContext, streamSelector StreamSelector, repSelector RepresentationSelector) (ReaderContext, error) {
+	var curContext readerLiveMPDUpdateContext
 	if rdrCtx != nil {
-		curContext = rdrCtx.(DASHReaderLiveMPDUpdateContext)
+		curContext = rdrCtx.(readerLiveMPDUpdateContext)
 	} else {
-		curContext = DASHReaderLiveMPDUpdateContext{
-			DASHReaderBaseContext: DASHReaderBaseContext{
+		curContext = readerLiveMPDUpdateContext{
+			readerBaseContext: readerBaseContext{
 				adaptSetID:     0,
 				repID:          "",
 				updCounter:     0,
@@ -38,7 +38,7 @@ func (r *DASHReaderLiveMPDUpdate) MakeDASHReaderContext(rdrCtx DASHReaderContext
 			},
 		}
 	}
-	curMpd, updCounter := r.DASHReaderBaseExtn.checkUpdate()
+	curMpd, updCounter := r.readerBaseExtn.checkUpdate()
 	updateRequired := false
 	if reflect.TypeOf(curContext.repSelector) != reflect.TypeOf(repSelector) {
 		curContext.repSelector = repSelector
@@ -49,7 +49,7 @@ func (r *DASHReaderLiveMPDUpdate) MakeDASHReaderContext(rdrCtx DASHReaderContext
 		updateRequired = true
 	}
 	if updateRequired {
-		curContext.adjustRepUpdate(r.DASHReaderBase, curMpd)
+		curContext.adjustRepUpdate(r.readerBase, curMpd)
 	}
 	if updCounter == curContext.updCounter {
 		//no update
@@ -58,7 +58,7 @@ func (r *DASHReaderLiveMPDUpdate) MakeDASHReaderContext(rdrCtx DASHReaderContext
 	if rdrCtx == nil {
 		//Incoming context is nil = new context
 		//Locate the livePoint
-		err := curContext.livePointLocate(r.DASHReaderBase, curMpd)
+		err := curContext.livePointLocate(r.readerBase, curMpd)
 		if err != nil {
 			//Don't return the newly created context
 			return nil, fmt.Errorf("LivePoint Locate Failed: %w", err)

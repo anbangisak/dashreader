@@ -19,8 +19,8 @@ type ChunkURL struct {
 //ChunkURLChannel - Channel of Chunk URLs
 type ChunkURLChannel chan ChunkURL
 
-//DASHReaderContext - Unique data for each DASHReader
-type DASHReaderContext interface {
+//ReaderContext - Unique data for each Reader
+type ReaderContext interface {
 	//NextURL -
 	//-- Once end is reached (io.EOF)
 	//-- MakeDASHReaderContext has to be called again
@@ -42,8 +42,8 @@ type DASHReaderContext interface {
 	GetURLs(context.Context) (ret <-chan ChunkURL, err error)
 }
 
-//DASHReader - Read any DASH file and get Playback URLs
-type DASHReader interface {
+//Reader - Read any DASH file and get Playback URLs
+type Reader interface {
 	//Update -
 	// Parameters:
 	//   MPD read
@@ -61,5 +61,5 @@ type DASHReader interface {
 	// Return:
 	//   1: Context for current AdaptationSet,Representation
 	//   2: error
-	MakeDASHReaderContext(DASHReaderContext, StreamSelector, RepresentationSelector) (DASHReaderContext, error)
+	MakeDASHReaderContext(ReaderContext, StreamSelector, RepresentationSelector) (ReaderContext, error)
 }

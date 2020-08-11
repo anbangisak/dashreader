@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-//DASHReaderFactory - Factory of DASHReaders
-type DASHReaderFactory struct {
+//ReaderFactory - ReaderFactory of DASHReaders
+type ReaderFactory struct {
 	//IsLive - Live content?
 	IsLive bool
 	//AST - Availablity Start Time - WallClock reference
@@ -36,18 +36,18 @@ type DASHReaderFactory struct {
 }
 
 //GetDASHReader - Depending on the MPD contents find the right reader
-func (f *DASHReaderFactory) GetDASHReader(mpd *MPDtype) (DASHReader, error) {
+func (f *ReaderFactory) GetDASHReader(mpd *MPDtype) (Reader, error) {
 	var err error
 	//Validate and read the fields to understand the type of MPD
 	err = f.validate(mpd)
 	if err != nil {
 		return nil, err
 	}
-	//Build a DASHReader and respond
+	//Build a Reader and respond
 	return f.makeDASHReader(mpd)
 }
 
-func (f *DASHReaderFactory) validateMpdDurationFields(mpd *MPDtype) error {
+func (f *ReaderFactory) validateMpdDurationFields(mpd *MPDtype) error {
 	var err error
 	var v time.Duration
 	if len(mpd.MinBufferTime) > 0 {
@@ -98,7 +98,7 @@ func (f *DASHReaderFactory) validateMpdDurationFields(mpd *MPDtype) error {
 	return nil
 }
 
-func (f *DASHReaderFactory) validatePeriodDurationFields(period *PeriodType) error {
+func (f *ReaderFactory) validatePeriodDurationFields(period *PeriodType) error {
 	var err error
 	if len(period.Start) > 0 {
 		if _, err = ParseDuration(period.Start); err != nil {
@@ -114,7 +114,7 @@ func (f *DASHReaderFactory) validatePeriodDurationFields(period *PeriodType) err
 }
 
 //Validate - Validates the MPD for various fields
-func (f *DASHReaderFactory) validate(mpd *MPDtype) error {
+func (f *ReaderFactory) validate(mpd *MPDtype) error {
 	var err error
 	//Validate the Duration Fields
 	err = f.validateMpdDurationFields(mpd)
@@ -136,7 +136,7 @@ func (f *DASHReaderFactory) validate(mpd *MPDtype) error {
 	return err
 }
 
-func (f *DASHReaderFactory) validateDynamicMpd(mpd *MPDtype) error {
+func (f *ReaderFactory) validateDynamicMpd(mpd *MPDtype) error {
 	mpdUpdateMode := true
 	// Value of these fields won't change
 	if !strings.Contains(mpd.Profiles, LiveProfile) {
@@ -197,7 +197,7 @@ func (f *DASHReaderFactory) validateDynamicMpd(mpd *MPDtype) error {
 	return nil
 }
 
-func (f *DASHReaderFactory) validateDynamicAdaptSet(periodStart time.Time, periodDuration **time.Duration, adaptSet *AdaptationSetType) error {
+func (f *ReaderFactory) validateDynamicAdaptSet(periodStart time.Time, periodDuration **time.Duration, adaptSet *AdaptationSetType) error {
 	timeScalePresent := false
 	segTimelinePresent := false
 	durationPresent := false
@@ -264,7 +264,7 @@ func (f *DASHReaderFactory) validateDynamicAdaptSet(periodStart time.Time, perio
 	return nil
 }
 
-func (f *DASHReaderFactory) validateStatic(mpd *MPDtype) error {
+func (f *ReaderFactory) validateStatic(mpd *MPDtype) error {
 	if !strings.Contains(mpd.Profiles, OnDemandProfile) {
 		return fmt.Errorf("MPD.Profile MUST include \"%v\" for MPD.Type=\"static\"", OnDemandProfile)
 	}
@@ -272,13 +272,13 @@ func (f *DASHReaderFactory) validateStatic(mpd *MPDtype) error {
 }
 
 //makeDASHReader - depending on the read type, return DASH Reader
-func (f *DASHReaderFactory) makeDASHReader(mpd *MPDtype) (DASHReader, error) {
+func (f *ReaderFactory) makeDASHReader(mpd *MPDtype) (Reader, error) {
 	if f.IsLive {
 		if f.isSegmentTimeline != nil {
 			if f.isTimeBased != nil {
-				ret := &DASHReaderLiveMPDUpdate{
-					DASHReaderBaseExtn: DASHReaderBaseExtn{
-						DASHReaderBase: DASHReaderBase{
+				ret := &readerLiveMPDUpdate{
+					readerBaseExtn: readerBaseExtn{
+						readerBase: readerBase{
 							baseURL:  f.baseURL,
 							baseTime: f.AST,
 							isNumber: !*f.isTimeBased,

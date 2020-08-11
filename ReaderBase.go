@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-//DASHReaderBase - Fixed values created first time
-type DASHReaderBase struct {
+//readerBase - Fixed values created first time
+type readerBase struct {
 	ID       string    //ID for the Reader
 	baseTime time.Time //WallClock time of start of period
 	baseURL  url.URL   //Base URL
@@ -16,9 +16,9 @@ type DASHReaderBase struct {
 	isTime   bool      //Time pattern
 }
 
-//DASHReaderBaseExtn - Base functionality for all dash readers
-type DASHReaderBaseExtn struct {
-	DASHReaderBase
+//readerBaseExtn - Base functionality for all dash readers
+type readerBaseExtn struct {
+	readerBase
 	mutex      sync.RWMutex //Mutex to gaurd updCounter, curMpd, nextMpd
 	updCounter int64        //to sync between Context and Reader
 	curMpd     *MPDtype     //Current MPD
@@ -26,7 +26,7 @@ type DASHReaderBaseExtn struct {
 }
 
 //checkUpdate - Invoked by Client to
-func (r *DASHReaderBaseExtn) checkUpdate() (*MPDtype, int64) {
+func (r *readerBaseExtn) checkUpdate() (*MPDtype, int64) {
 	//Allow for parallel read and serialized writes
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
@@ -40,7 +40,7 @@ func (r *DASHReaderBaseExtn) checkUpdate() (*MPDtype, int64) {
 //   1: MPD Updated - PublishTime Updated?
 //   2: New Period  - NewPeriod Updated?
 //   3: error
-func (r *DASHReaderBaseExtn) Update(newMpd *MPDtype) (bool, bool, error) {
+func (r *readerBaseExtn) Update(newMpd *MPDtype) (bool, bool, error) {
 	if !IsPresentTime(newMpd.PublishTime) {
 		return false, false, fmt.Errorf("MPD.PublishTime MUST be present")
 	}
@@ -67,6 +67,6 @@ func (r *DASHReaderBaseExtn) Update(newMpd *MPDtype) (bool, bool, error) {
 // Return:
 //   1: Context for current AdaptationSet,Representation
 //   2: error
-func (r *DASHReaderBaseExtn) MakeDASHReaderContext(DASHReaderContext, StreamSelector, RepresentationSelector) (DASHReaderContext, error) {
-	return nil, fmt.Errorf("DASHReaderBaseExtn MakeDASHReaderContext NOT IMPLEMENTED")
+func (r *readerBaseExtn) MakeDASHReaderContext(ReaderContext, StreamSelector, RepresentationSelector) (ReaderContext, error) {
+	return nil, fmt.Errorf("readerBaseExtn MakeDASHReaderContext NOT IMPLEMENTED")
 }

@@ -7,8 +7,8 @@ import (
 	"github.com/eswarantg/statzagg"
 )
 
-//DASHReaderBaseContext - Base context
-type DASHReaderBaseContext struct {
+//readerBaseContext - Base context
+type readerBaseContext struct {
 	ID             string                 //ID for the ReaderContext
 	updCounter     int64                  //to sync between Context and Reader
 	StatzAgg       *statzagg.StatzAgg     //Statz Agg
@@ -19,15 +19,15 @@ type DASHReaderBaseContext struct {
 }
 
 //Select - select AdaptationSet and Representation
-func (c DASHReaderBaseContext) Select(p PeriodType) error {
+func (c readerBaseContext) Select(p PeriodType) error {
 	adaptSet := c.selectAdapationSets(p)
 	if adaptSet == nil {
-		return fmt.Errorf("DASHReaderContext(%v) no AdaptationSet selected", c.ID)
+		return fmt.Errorf("ReaderContext(%v) no AdaptationSet selected", c.ID)
 	}
 	reps := c.filterRepresentation(*adaptSet)
 	rep := c.repSelector.SelectRepresentation(reps)
 	if rep == nil {
-		return fmt.Errorf("DASHReaderContext(%v) AdaptationSet(%v) no Representation selected", c.ID, adaptSet.Id)
+		return fmt.Errorf("ReaderContext(%v) AdaptationSet(%v) no Representation selected", c.ID, adaptSet.Id)
 	}
 	c.adaptSetID = adaptSet.Id
 	c.repID = rep.Id
@@ -35,7 +35,7 @@ func (c DASHReaderBaseContext) Select(p PeriodType) error {
 }
 
 //selectAdapationSets for period
-func (c DASHReaderBaseContext) selectAdapationSets(p PeriodType) *AdaptationSetType {
+func (c readerBaseContext) selectAdapationSets(p PeriodType) *AdaptationSetType {
 	var ret *AdaptationSetType
 	ret = nil
 	lastMatchResp := MatchResultDontCare
@@ -59,7 +59,7 @@ func (c DASHReaderBaseContext) selectAdapationSets(p PeriodType) *AdaptationSetT
 }
 
 //filterRepresentation - From among the representations select the right representation
-func (c DASHReaderBaseContext) filterRepresentation(a AdaptationSetType) []*RepresentationType {
+func (c readerBaseContext) filterRepresentation(a AdaptationSetType) []*RepresentationType {
 	var foundList []*RepresentationType
 	var partialList []*RepresentationType
 	var dontCareList []*RepresentationType
@@ -89,8 +89,8 @@ func (c DASHReaderBaseContext) filterRepresentation(a AdaptationSetType) []*Repr
 // Return:
 //   1: Next URL
 //   2: error
-func (c DASHReaderBaseContext) NextURL() (ret *ChunkURL, err error) {
-	return nil, fmt.Errorf("DASHReaderBaseContext NextURL NOT IMPLEMENTED")
+func (c readerBaseContext) NextURL() (ret *ChunkURL, err error) {
+	return nil, fmt.Errorf("readerBaseContext NextURL NOT IMPLEMENTED")
 }
 
 //GetURLs - Get URLs from Current MPD context
@@ -101,7 +101,7 @@ func (c DASHReaderBaseContext) NextURL() (ret *ChunkURL, err error) {
 // Return:
 //   1: Channel of URLs, can be read till closed
 //   2: error
-func (c DASHReaderBaseContext) GetURLs(ctx context.Context) (ret <-chan ChunkURL, err error) {
+func (c readerBaseContext) GetURLs(ctx context.Context) (ret <-chan ChunkURL, err error) {
 	var chunkURL *ChunkURL
 	chunkURL, err = c.NextURL()
 	if err != nil {

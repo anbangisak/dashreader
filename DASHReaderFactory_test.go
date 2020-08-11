@@ -14,7 +14,7 @@ func TestFactory(t *testing.T) {
 			t.Errorf("Error reading %s:%v", file, err)
 		}
 		t.Logf("================ %v =================", file)
-		factory := dashreader.DASHReaderFactory{}
+		factory := dashreader.Factory{}
 		_, err = factory.GetDASHReader(mpd)
 		if err != nil {
 			t.Errorf("Error getting reader : %v", err)
