@@ -1,0 +1,67 @@
+@startuml dashclient
+package StatzAgg {
+    interface StatzAgg {
+        + PostHTTPClientStats(HTTPClientStatz)
+    }
+}
+package dashreader {
+    class ChunkURL {
+    }
+    class ChunkURLChannel {
+    }
+    interface DASHReaderContext {
+        + SetRepresentationSelector(RepresentationSelector)
+        + NextURL() (ChunkURL,error)
+        + GetURLs() (ChunkURLChannel,error)
+    }
+    interface DASHReader {
+        + Update(MPD)
+        + MakeDASHReaderContext(DASHReaderContext, StreamSelector, StringNoWhitespaceType) (DASHReaderContext, error)
+    }
+    class DASHReaderBaseContext { 
+        + GetURLs() (ChunkURLChannel,error)      
+    }
+    class DASHReaderFactory {
+    }
+    class StreamSelector {
+    }
+    class StreamSelectorList {
+        + NewStreamSelectorList(filename)
+        + GetStream(contentType)
+    }
+    class RepresentationSelector {
+    }
+    class DASHReaderLiveMPDUpdate {
+        + MakeDASHReaderContext(DASHReaderContext, uint, StringNoWhitespaceType) (DASHReaderContext, error)
+    }
+    DASHReaderContext ^-- DASHReaderBaseContext : Default
+    DASHReaderBaseContext ^-- DASHReaderLiveMPDUpdateContext : For Live with MPD Update/SegTimeline
+    DASHReader ^-- DASHReaderBase: Default
+    DASHReaderBase ^-- DASHReaderBaseExtn : for MPD update handling
+    DASHReaderBaseExtn ^-- DASHReaderLiveMPDUpdate : For Live with MPD Update/SegTimeline
+    DASHReaderLiveMPDUpdate --> DASHReaderLiveMPDUpdateContext : Create/Update
+    DASHReaderFactory --> DASHReaderLiveMPDUpdate : Create
+    DASHReaderContext --> ChunkURLChannel : Create
+    DASHReaderContext --> ChunkURL : Produce
+    DASHReaderLiveMPDUpdateContext --> StatzAgg : Produce Events
+    DASHReaderLiveMPDUpdateContext --> StreamSelection : Filter Representations
+    DASHReaderBaseExtn --> RepresentationSelector : Select Representation
+    MinBWRepresentationSelector ^-- RepresentationSelector : Opt for Min BW
+    MaxBWRepresentationSelector ^-- RepresentationSelector : Opt for Min BW
+}
+package consumer {
+    class client {
+        + MPD
+        + ReadMPD() 
+    }
+    class CustomRepresentationSelector{
+    }
+    client --> StreamSelectorList : 1. NewStreamSelectorList(filename)
+    client --> DASHReaderFactory : 2. GetDASHReader(MPD)   
+    client --> StreamSelectorList : 3. GetStream(contentType)    
+    client --> DASHReader: 4,8. MakeDASHReaderContext(AdaptSet, StreamSelector, CustomRepresentationSelector)
+    client --> DASHReaderContext : 5,9. GetURLs()
+    client --> ChunkURLChannel : 6. Consume from Channel
+    client --> DASHReader: 7. Update(MPD)
+}
+@enduml
