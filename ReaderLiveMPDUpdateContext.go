@@ -23,6 +23,7 @@ type readerLiveMPDUpdateContext struct {
 	isNumber   bool                //Number pattern
 	isTime     bool                //Time pattern
 	initURL    url.URL             //url for init
+	initRange  string              //range Header for init
 	baseURL    url.URL             //Base url for chunk
 
 	binitURLServed       bool   //init URL pending to be returned
@@ -152,11 +153,14 @@ func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error {
 //livePointLocate - Locate the Live Point in the Current MPD
 // Set the context so that next URL fetch will return required values
 func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *MPDtype) error {
+	var periodBaseURL url.URL
+	periodBaseURL = reader.baseURL
 	pSwc := reader.baseTime
 	pEwc := time.Time{}
 	//Use PT as the base time to compute live point ref
 	curWc := curMpd.PublishTime
 	for _, period := range curMpd.Period {
+		var tURL *url.URL
 		var v time.Duration
 		if IsPresentDuration(period.Start) {
 			// PSwc = lastPSwc + PS
@@ -167,33 +171,50 @@ func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *
 			return fmt.Errorf("No LivePoint Period found")
 		}
 		if curWc.After(pSwc) {
-			if !IsPresentDuration(period.Duration) {
-				//Found a Period with Start valid and no Duration record
-				break
-			}
-			v, _ = ParseDuration(period.Duration)
-			pEwc = pSwc.Add(v)
-			if pEwc.Before(curWc) {
-				//The entire period is before curWc
-				continue
+			if IsPresentDuration(period.Duration) {
+				v, _ = ParseDuration(period.Duration)
+				pEwc = pSwc.Add(v)
+				if pEwc.Before(curWc) {
+					//The entire period is before curWc
+					continue
+				}
 			}
 		}
 		//curWc.Equal(pSwc)
+		//pSwc >= curWc && No Duration present
 		//pSwc >= curWc  < pEwc
 		if err := c.Select(period); err != nil {
 			return fmt.Errorf("For Period(%v) No AdaptationSet selection found : %v", period.Id, err)
 		}
+		tURL, err := AdjustURLPath(periodBaseURL, period.BaseURL, "")
+		if err != nil {
+			return fmt.Errorf("Adjusting to Period(%v) BaseURL has error: %v", period.Id, err)
+		}
+		periodBaseURL = *tURL
 		for _, adapt := range period.AdaptationSet {
-			if adapt.Id != c.adaptSetID {
+			if adapt.ContentType != c.streamSelector.ContentType || adapt.Id != c.adaptSetID {
 				continue
 			}
 			//Found matching AdaptationSet
+			tURL, err := AdjustURLPath(periodBaseURL, adapt.BaseURL, "")
+			if err != nil {
+				return fmt.Errorf("Adjusting to Period(%v) BaseURL has error: %v", period.Id, err)
+			}
+			adaptBaseURL := *tURL
 			for _, rp := range adapt.Representation {
-				//Found matching Representation
 				if rp.Id != c.repID {
 					continue
 				}
+				//Found matching Representation
+				tURL, err := AdjustURLPath(adaptBaseURL, rp.BaseURL, "")
+				if err != nil {
+					return fmt.Errorf("Adjusting to Period(%v) BaseURL has error: %v", period.Id, err)
+				}
+				rpBaseURL := *tURL
+
 				//Initialize the values
+				c.baseURL = rpBaseURL
+
 				c.baseWcTime = pSwc
 				//Offset any PresentationTimeOffset
 				if rp.SegmentBase.PresentationTimeOffset > 0 {
@@ -211,14 +232,26 @@ func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *
 
 				c.isNumber = reader.isNumber
 				c.isTime = reader.isTime
-
 				if len(adapt.SegmentTemplate.Initialization.SourceURL) > 0 {
-					c.initURL = url.URL{} //TBD
-					c.binitURLServed = true
+					temp := strings.ReplaceAll(adapt.SegmentTemplate.Initialization.SourceURL, "$RepresentationID$", string(rp.Id))
+					v, err := AdjustURLPath(rpBaseURL, []BaseURLType{}, temp)
+					if err != nil {
+						return fmt.Errorf("Adjusting to Representation(%v) BaseURL has error: %v", rp.Id, err)
+					}
+					c.initURL = *v
+					c.initRange = adapt.SegmentTemplate.Initialization.Range
+					c.binitURLServed = false //to be supplied
 				} else {
-					c.binitURLServed = false
+					c.initURL = url.URL{}
+					c.initRange = ""
+					c.binitURLServed = true //mark already supplied so that it is not done
 				}
-				c.baseURL = url.URL{} //TBD
+				temp := strings.ReplaceAll(adapt.SegmentTemplate.Media, "$RepresentationID$", string(rp.Id))
+				v, err := AdjustURLPath(rpBaseURL, []BaseURLType{}, temp)
+				if err != nil {
+					return fmt.Errorf("Adjusting to Representation(%v) BaseURL has error: %v", rp.Id, err)
+				}
+				c.baseURL = *v
 				c.curSegTimeLineEntry = 0
 				c.curEntry = 0
 				c.chunkNumber = 0
@@ -230,7 +263,7 @@ func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *
 		}
 		return fmt.Errorf("Representation(%v:%v) not found", c.adaptSetID, c.repID)
 	}
-	return nil
+	return fmt.Errorf("Active Period not found")
 }
 
 //getURL - Returns current URL
@@ -255,6 +288,18 @@ func (c *readerLiveMPDUpdateContext) getURL() (ret *S, err error) {
 	return &c.timeline.S[c.curSegTimeLineEntry], nil
 }
 
+//NextURLs - Get URLs from Current MPD context
+//-- Once end of this list is reached
+//-- MakeDASHReaderContext has to be called again
+// Parameters;
+//   context for cancellation
+// Return:
+//   1: Channel of URLs, can be read till closed
+//   2: error
+func (c *readerLiveMPDUpdateContext) NextURLs(ctx context.Context) (ret <-chan ChunkURL, err error) {
+	return c.getURLs(ctx, ReaderContext(c))
+}
+
 //NextURL -
 //-- Once end is reached (io.EOF)
 //-- MakeDASHReaderContext has to be called again
@@ -263,23 +308,40 @@ func (c *readerLiveMPDUpdateContext) getURL() (ret *S, err error) {
 // Return:
 //   1: Next URL
 //   2: error
-func (c readerLiveMPDUpdateContext) NextURL() (ret ChunkURL, err error) {
+func (c *readerLiveMPDUpdateContext) NextURL() (*ChunkURL, error) {
+	return c.nextURL()
+}
+
+//NextURL -
+//-- Once end is reached (io.EOF)
+//-- MakeDASHReaderContext has to be called again
+// Parameters;
+//   None
+// Return:
+//   1: Next URL
+//   2: error
+func (c *readerLiveMPDUpdateContext) nextURL() (ret *ChunkURL, err error) {
 	var entry *S
+	ret = nil
+	err = nil
 	if !c.binitURLServed {
+		ret = &ChunkURL{}
 		c.binitURLServed = true
 		ret.ChunkURL = c.initURL
+		ret.Range = c.initRange
 		ret.Duration = 0
 		ret.FetchAt = time.Now()
+		return
 	}
 	entry, err = c.getURL()
 	if err != nil {
 		return
 	}
+	ret = &ChunkURL{}
 	if c.isNumber {
 		ret.ChunkURL = c.baseURL
 		ret.Duration = time.Duration(float64(entry.D)*1000000/float64(c.timescale)) * time.Microsecond
 		ret.ChunkURL.Path = strings.ReplaceAll(ret.ChunkURL.Path, "$Number$", strconv.FormatInt(int64(c.chunkNumber+c.startNumber), 10))
-		ret.ChunkURL.Path = strings.ReplaceAll(ret.ChunkURL.Path, "$Time$", strconv.FormatUint((c.elapsedDurationTicks+c.chunkTimeTicks), 10))
 		ret.FetchAt = c.baseWcTime.Add(time.Duration(float64(c.elapsedDurationTicks+c.chunkTimeTicks)*1000000/float64(c.timescale)) * time.Microsecond)
 	}
 	if c.isTime {

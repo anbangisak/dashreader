@@ -10,6 +10,8 @@ import (
 type ChunkURL struct {
 	//ChunkURL - Actual URL
 	ChunkURL url.URL
+	//Range - Range Header
+	Range string
 	//FetchAt - WallClock Time when URL becomes available
 	FetchAt time.Time
 	//Duration - Duration of content available in this URL
@@ -29,7 +31,7 @@ type ReaderContext interface {
 	// Return:
 	//   1: Next URL
 	//   2: error
-	NextURL() (ret ChunkURL, err error)
+	NextURL() (*ChunkURL, error)
 
 	//GetURLs - Get URLs from Current MPD context
 	//-- Once end of this list is reached
@@ -39,7 +41,7 @@ type ReaderContext interface {
 	// Return:
 	//   1: Channel of URLs, can be read till closed
 	//   2: error
-	GetURLs(context.Context) (ret <-chan ChunkURL, err error)
+	NextURLs(context.Context) (<-chan ChunkURL, error)
 }
 
 //Reader - Read any DASH file and get Playback URLs
@@ -61,5 +63,5 @@ type Reader interface {
 	// Return:
 	//   1: Context for current AdaptationSet,Representation
 	//   2: error
-	MakeDASHReaderContext(ReaderContext, StreamSelector, RepresentationSelector) (ReaderContext, error)
+	MakeDASHReaderContext(*ReaderContext, StreamSelector, RepresentationSelector) (ReaderContext, error)
 }

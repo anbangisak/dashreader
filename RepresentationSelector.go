@@ -12,7 +12,7 @@ type MinBWRepresentationSelector struct {
 }
 
 //SelectRepresentation - Selects one of the available representationss
-func (s *MinBWRepresentationSelector) SelectRepresentation(reps []*RepresentationType) *RepresentationType {
+func (s MinBWRepresentationSelector) SelectRepresentation(reps []*RepresentationType) *RepresentationType {
 	var ret *RepresentationType
 	var bandwidth uint = 0xFFFFFFFF
 	for _, r := range reps {
@@ -30,7 +30,7 @@ type MaxBWRepresentationSelector struct {
 }
 
 //SelectRepresentation - Selects one of the available representationss
-func (s *MaxBWRepresentationSelector) SelectRepresentation(reps []*RepresentationType) *RepresentationType {
+func (s MaxBWRepresentationSelector) SelectRepresentation(reps []*RepresentationType) *RepresentationType {
 	var ret *RepresentationType
 	var bandwidth uint = 0
 	for _, r := range reps {

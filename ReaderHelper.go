@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"reflect"
 	"strings"
@@ -89,4 +90,35 @@ func GetBoolFromConditionalUintType(v ConditionalUintType) bool {
 		return true
 	}
 	return false
+}
+
+//AdjustURLPath - Adjusts the URL Path to include the pathURL
+func AdjustURLPath(refURL url.URL, adjustURL []BaseURLType, relativePath string) (*url.URL, error) {
+	if len(relativePath) > 0 {
+		u, err := url.Parse(relativePath)
+		if err != nil {
+			return nil, fmt.Errorf("RelativePath(%v) not correct: %w", relativePath, err)
+		}
+		v := refURL.ResolveReference(u)
+		refURL = *v
+	}
+	if len(adjustURL) <= 0 {
+		return &refURL, nil
+	}
+	//Always use ZERO index
+	index := 0
+	if len(adjustURL[index].Value) <= 0 {
+		return &refURL, nil
+	}
+	u, err := url.Parse(adjustURL[index].Value)
+	if err != nil {
+		return &refURL, fmt.Errorf("BaseURL(%v) not correct: %w", adjustURL[index].Value, err)
+	}
+	if len(u.Host) > 0 {
+		refURL = *u
+	} else {
+		v := refURL.ResolveReference(u)
+		refURL = *v
+	}
+	return &refURL, nil
 }

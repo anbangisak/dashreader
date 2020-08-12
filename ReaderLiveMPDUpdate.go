@@ -23,13 +23,15 @@ type readerLiveMPDUpdate struct {
 // Return:
 //   1: Context for current AdaptationSet,Representation
 //   2: error
-func (r *readerLiveMPDUpdate) MakeDASHReaderContext(rdrCtx ReaderContext, streamSelector StreamSelector, repSelector RepresentationSelector) (ReaderContext, error) {
+func (r *readerLiveMPDUpdate) MakeDASHReaderContext(rdrCtx *ReaderContext, streamSelector StreamSelector, repSelector RepresentationSelector) (ReaderContext, error) {
 	var curContext readerLiveMPDUpdateContext
 	if rdrCtx != nil {
-		curContext = rdrCtx.(readerLiveMPDUpdateContext)
+		v := (*rdrCtx).(*readerLiveMPDUpdateContext)
+		curContext = *v
 	} else {
 		curContext = readerLiveMPDUpdateContext{
 			readerBaseContext: readerBaseContext{
+				ID:             r.ID,
 				adaptSetID:     0,
 				repID:          "",
 				updCounter:     0,
@@ -38,8 +40,8 @@ func (r *readerLiveMPDUpdate) MakeDASHReaderContext(rdrCtx ReaderContext, stream
 			},
 		}
 	}
-	curMpd, updCounter := r.readerBaseExtn.checkUpdate()
 	updateRequired := false
+	curMpd, updCounter := r.readerBaseExtn.checkUpdate()
 	if reflect.TypeOf(curContext.repSelector) != reflect.TypeOf(repSelector) {
 		curContext.repSelector = repSelector
 		updateRequired = true

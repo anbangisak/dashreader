@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+const (
+	relativeBasePathURL = "./"
+)
+
 //ReaderFactory - ReaderFactory of DASHReaders
 type ReaderFactory struct {
 	//IsLive - Live content?
@@ -36,15 +40,23 @@ type ReaderFactory struct {
 }
 
 //GetDASHReader - Depending on the MPD contents find the right reader
-func (f *ReaderFactory) GetDASHReader(mpd *MPDtype) (Reader, error) {
-	var err error
+func (f *ReaderFactory) GetDASHReader(ID string, mpdURL string, mpd *MPDtype) (Reader, error) {
+	baseURL, err := url.Parse(mpdURL)
+	if err != nil {
+		return nil, fmt.Errorf("Supplied mpdURL(%v) not correct: %w", mpdURL, err)
+	}
+	baseURL, err = AdjustURLPath(*baseURL, mpd.BaseURL, relativeBasePathURL)
+	if err != nil {
+		return nil, fmt.Errorf("MPD.%w", err)
+	}
+	f.baseURL = *baseURL
 	//Validate and read the fields to understand the type of MPD
 	err = f.validate(mpd)
 	if err != nil {
 		return nil, err
 	}
 	//Build a Reader and respond
-	return f.makeDASHReader(mpd)
+	return f.makeDASHReader(ID, mpd)
 }
 
 func (f *ReaderFactory) validateMpdDurationFields(mpd *MPDtype) error {
@@ -194,6 +206,7 @@ func (f *ReaderFactory) validateDynamicMpd(mpd *MPDtype) error {
 			}
 		}
 	}
+	f.IsLive = true
 	return nil
 }
 
@@ -234,8 +247,10 @@ func (f *ReaderFactory) validateDynamicAdaptSet(periodStart time.Time, periodDur
 	if adaptSet.SegmentTemplate.Duration != 0 {
 		durationPresent = true
 	}
-	if len(adaptSet.SegmentList.SegmentTimeline.S) > 0 {
-		segTimelinePresent = true
+	if adaptSet.SegmentTemplate.SegmentTimeline.S != nil {
+		if len(adaptSet.SegmentTemplate.SegmentTimeline.S) > 0 {
+			segTimelinePresent = true
+		}
 	}
 	if segTemplate.Timescale != 0 {
 		timeScalePresent = true
@@ -272,24 +287,32 @@ func (f *ReaderFactory) validateStatic(mpd *MPDtype) error {
 }
 
 //makeDASHReader - depending on the read type, return DASH Reader
-func (f *ReaderFactory) makeDASHReader(mpd *MPDtype) (Reader, error) {
+func (f *ReaderFactory) makeDASHReader(ID string, mpd *MPDtype) (Reader, error) {
 	if f.IsLive {
 		if f.isSegmentTimeline != nil {
-			if f.isTimeBased != nil {
-				ret := &readerLiveMPDUpdate{
-					readerBaseExtn: readerBaseExtn{
-						readerBase: readerBase{
-							baseURL:  f.baseURL,
-							baseTime: f.AST,
-							isNumber: !*f.isTimeBased,
-							isTime:   *f.isTimeBased,
+			if *f.isSegmentTimeline {
+				if f.isTimeBased != nil {
+					ret := &readerLiveMPDUpdate{
+						readerBaseExtn: readerBaseExtn{
+							updCounter: 0,
+							readerBase: readerBase{
+								ID:       ID,
+								baseURL:  f.baseURL,
+								baseTime: f.AST,
+								isNumber: !*f.isTimeBased,
+								isTime:   *f.isTimeBased,
+							},
 						},
-					},
+					}
+					_, _, err := ret.Update(mpd)
+					if err != nil {
+						return nil, err
+					}
+					return ret, nil
 				}
-				ret.Update(mpd)
-				return ret, nil
 			}
+
 		}
 	}
-	return nil, nil
+	return nil, fmt.Errorf("Reader not found")
 }

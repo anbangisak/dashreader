@@ -19,7 +19,7 @@ type readerBaseContext struct {
 }
 
 //Select - select AdaptationSet and Representation
-func (c readerBaseContext) Select(p PeriodType) error {
+func (c *readerBaseContext) Select(p PeriodType) error {
 	adaptSet := c.selectAdapationSets(p)
 	if adaptSet == nil {
 		return fmt.Errorf("ReaderContext(%v) no AdaptationSet selected", c.ID)
@@ -35,7 +35,7 @@ func (c readerBaseContext) Select(p PeriodType) error {
 }
 
 //selectAdapationSets for period
-func (c readerBaseContext) selectAdapationSets(p PeriodType) *AdaptationSetType {
+func (c *readerBaseContext) selectAdapationSets(p PeriodType) *AdaptationSetType {
 	var ret *AdaptationSetType
 	ret = nil
 	lastMatchResp := MatchResultDontCare
@@ -49,8 +49,8 @@ func (c readerBaseContext) selectAdapationSets(p PeriodType) *AdaptationSetType 
 		if matchResp == MatchResultNotFound {
 			continue
 		}
-		//Check if this is a better match
-		if matchResp > lastMatchResp {
+		//Check if found first time or this is a better match
+		if ret == nil || matchResp > lastMatchResp {
 			ret = &adaptSet
 			matchResp = lastMatchResp
 		}
@@ -59,7 +59,7 @@ func (c readerBaseContext) selectAdapationSets(p PeriodType) *AdaptationSetType 
 }
 
 //filterRepresentation - From among the representations select the right representation
-func (c readerBaseContext) filterRepresentation(a AdaptationSetType) []*RepresentationType {
+func (c *readerBaseContext) filterRepresentation(a AdaptationSetType) []*RepresentationType {
 	var foundList []*RepresentationType
 	var partialList []*RepresentationType
 	var dontCareList []*RepresentationType
@@ -89,11 +89,11 @@ func (c readerBaseContext) filterRepresentation(a AdaptationSetType) []*Represen
 // Return:
 //   1: Next URL
 //   2: error
-func (c readerBaseContext) NextURL() (ret *ChunkURL, err error) {
+func (c *readerBaseContext) NextURL() (*ChunkURL, error) {
 	return nil, fmt.Errorf("readerBaseContext NextURL NOT IMPLEMENTED")
 }
 
-//GetURLs - Get URLs from Current MPD context
+//NextURLs - Get URLs from Current MPD context
 //-- Once end of this list is reached
 //-- MakeDASHReaderContext has to be called again
 // Parameters;
@@ -101,9 +101,22 @@ func (c readerBaseContext) NextURL() (ret *ChunkURL, err error) {
 // Return:
 //   1: Channel of URLs, can be read till closed
 //   2: error
-func (c readerBaseContext) GetURLs(ctx context.Context) (ret <-chan ChunkURL, err error) {
+func (c *readerBaseContext) NextURLs(ctx context.Context) (ret <-chan ChunkURL, err error) {
+	return c.getURLs(ctx, ReaderContext(c))
+}
+
+//getURLs - Get URLs from Current MPD context
+//-- Once end of this list is reached
+//-- MakeDASHReaderContext has to be called again
+// Parameters;
+//   context for cancellation
+//   ReaderContext
+// Return:
+//   1: Channel of URLs, can be read till closed
+//   2: error
+func (c *readerBaseContext) getURLs(ctx context.Context, rdrCtx ReaderContext) (ret <-chan ChunkURL, err error) {
 	var chunkURL *ChunkURL
-	chunkURL, err = c.NextURL()
+	chunkURL, err = rdrCtx.NextURL()
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +128,7 @@ func (c readerBaseContext) GetURLs(ctx context.Context) (ret <-chan ChunkURL, er
 		case <-ctx.Done():
 			return
 		default:
-			chunkURL, err = c.NextURL()
+			chunkURL, err = rdrCtx.NextURL()
 			if err != nil {
 				return
 			}
