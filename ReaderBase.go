@@ -38,27 +38,25 @@ func (r *readerBaseExtn) checkUpdate() (*MPDtype, int64) {
 //   MPD read
 // Return:
 //   1: MPD Updated - PublishTime Updated?
-//   2: New Period  - NewPeriod Updated?
-//   3: error
-func (r *readerBaseExtn) Update(newMpd *MPDtype) (bool, bool, error) {
+//   2: error
+func (r *readerBaseExtn) Update(newMpd *MPDtype) (bool, error) {
 	if !IsPresentTime(newMpd.PublishTime) {
-		return false, false, fmt.Errorf("MPD.PublishTime MUST be present")
+		return false, fmt.Errorf("MPD.PublishTime MUST be present")
 	}
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if r.curMpd != nil {
 		if r.curMpd.PublishTime.Equal(newMpd.PublishTime) {
-			return false, false, nil
+			return false, nil
 		}
 		if r.curMpd.PublishTime.After(newMpd.PublishTime) {
-			return false, false, fmt.Errorf("MPD.PublishTime MUST move forward. Ignoring")
+			return false, fmt.Errorf("MPD.PublishTime MUST move forward. Ignoring")
 		}
-		//TBD - Period Update check
 	}
 	r.lastMpd = r.curMpd
 	r.curMpd = newMpd
 	r.updCounter++
-	return true, false, nil
+	return true, nil
 }
 
 //MakeDASHReaderContext - Makes Reader Context
@@ -69,6 +67,6 @@ func (r *readerBaseExtn) Update(newMpd *MPDtype) (bool, bool, error) {
 // Return:
 //   1: Context for current AdaptationSet,Representation
 //   2: error
-func (r *readerBaseExtn) MakeDASHReaderContext(*ReaderContext, StreamSelector, RepresentationSelector) (ReaderContext, error) {
+func (r *readerBaseExtn) MakeDASHReaderContext(ReaderContext, StreamSelector, RepresentationSelector) (ReaderContext, error) {
 	return nil, fmt.Errorf("readerBaseExtn MakeDASHReaderContext NOT IMPLEMENTED")
 }

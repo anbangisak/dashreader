@@ -304,7 +304,7 @@ func (f *ReaderFactory) makeDASHReader(ID string, mpd *MPDtype) (Reader, error) 
 							},
 						},
 					}
-					_, _, err := ret.Update(mpd)
+					_, err := ret.Update(mpd)
 					if err != nil {
 						return nil, err
 					}

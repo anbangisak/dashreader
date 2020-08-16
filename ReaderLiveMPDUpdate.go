@@ -2,6 +2,7 @@ package dashreader
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 )
 
@@ -23,10 +24,10 @@ type readerLiveMPDUpdate struct {
 // Return:
 //   1: Context for current AdaptationSet,Representation
 //   2: error
-func (r *readerLiveMPDUpdate) MakeDASHReaderContext(rdrCtx *ReaderContext, streamSelector StreamSelector, repSelector RepresentationSelector) (ReaderContext, error) {
+func (r *readerLiveMPDUpdate) MakeDASHReaderContext(rdrCtx ReaderContext, streamSelector StreamSelector, repSelector RepresentationSelector) (ReaderContext, error) {
 	var curContext readerLiveMPDUpdateContext
 	if rdrCtx != nil {
-		v := (*rdrCtx).(*readerLiveMPDUpdateContext)
+		v := rdrCtx.(*readerLiveMPDUpdateContext)
 		curContext = *v
 	} else {
 		curContext = readerLiveMPDUpdateContext{
@@ -40,31 +41,33 @@ func (r *readerLiveMPDUpdate) MakeDASHReaderContext(rdrCtx *ReaderContext, strea
 			},
 		}
 	}
-	updateRequired := false
 	curMpd, updCounter := r.readerBaseExtn.checkUpdate()
 	if reflect.TypeOf(curContext.repSelector) != reflect.TypeOf(repSelector) {
 		curContext.repSelector = repSelector
-		updateRequired = true
 	}
 	if reflect.TypeOf(curContext.streamSelector) != reflect.TypeOf(streamSelector) {
 		curContext.streamSelector = streamSelector
-		updateRequired = true
 	}
-	if updateRequired {
-		curContext.adjustRepUpdate(r.readerBase, curMpd)
-	}
-	if updCounter == curContext.updCounter {
-		//no update
-		return &curContext, nil
-	}
-	if rdrCtx == nil {
-		//Incoming context is nil = new context
-		//Locate the livePoint
-		err := curContext.livePointLocate(r.readerBase, curMpd)
-		if err != nil {
-			//Don't return the newly created context
-			return nil, fmt.Errorf("LivePoint Locate Failed: %w", err)
+	if rdrCtx != nil {
+		if updCounter == curContext.updCounter {
+			//no update
+			return &curContext, nil
 		}
+		err := curContext.adjustRepUpdate(r.readerBase, curMpd)
+		if err == nil {
+			log.Printf("Adjust Rep Update Done")
+			return &curContext, nil
+		}
+		//Gaps TBD
+		log.Printf("Adjust Rep Update Fail : %v", err)
 	}
+	//Incoming context is nil = new context
+	//Locate the livePoint
+	err := curContext.livePointLocate(r.readerBase, curMpd)
+	if err != nil {
+		//Don't return the newly created context
+		return nil, fmt.Errorf("LivePoint Locate Failed: %w", err)
+	}
+	log.Printf("livePoint Locate Done")
 	return &curContext, nil
 }

@@ -51,9 +51,8 @@ type Reader interface {
 	//   MPD read
 	// Return:
 	//   1: MPD Updated - PublishTime Updated?
-	//   2: New Period  - NewPeriod Updated?
-	//   3: error
-	Update(*MPDtype) (bool, bool, error)
+	//   2: error
+	Update(*MPDtype) (bool, error)
 
 	//MakeDASHReaderContext - Makes Reader Context
 	// Parameters:
@@ -63,5 +62,5 @@ type Reader interface {
 	// Return:
 	//   1: Context for current AdaptationSet,Representation
 	//   2: error
-	MakeDASHReaderContext(*ReaderContext, StreamSelector, RepresentationSelector) (ReaderContext, error)
+	MakeDASHReaderContext(ReaderContext, StreamSelector, RepresentationSelector) (ReaderContext, error)
 }

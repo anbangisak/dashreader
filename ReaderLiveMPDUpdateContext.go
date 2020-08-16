@@ -13,6 +13,21 @@ import (
 	"github.com/eswarantg/statzagg"
 )
 
+const (
+	livePointOK          = 0
+	livePointNoEntry     = 1
+	livePointFutureEntry = 2
+)
+
+type livePointErr struct {
+	errType int
+	err     error
+}
+
+func (e livePointErr) Error() string {
+	return e.err.Error()
+}
+
 //readerLiveMPDUpdateContext - readerLiveMPDUpdate Context for
 type readerLiveMPDUpdateContext struct {
 	readerBaseContext
@@ -35,15 +50,12 @@ type readerLiveMPDUpdateContext struct {
 	startNumber          uint   //Number elapsed
 }
 
-func (c *readerLiveMPDUpdateContext) adjustRepUpdate(reader readerBase, curMpd *MPDtype) error {
-	//Can be better ... for now recompute livePointLocate
-	c.livePointLocate(reader, curMpd)
-	return nil
-}
-
 //moveToWallClock - Usred to adjust to wallClock
 // Set the context so that next URL fetch will return required values
-func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error {
+func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) livePointErr {
+	if wallClock != nil {
+		log.Printf("moveToNext %v", wallClock.UTC())
+	}
 	//c.baseWcTime - Reference Time
 	//c.elapsedDurationTicks is record base time from baseTime
 	//c.chunkTimeTicks is entry from base time for record
@@ -52,11 +64,13 @@ func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error {
 	for {
 		//Check if within given timeline
 		if c.curSegTimeLineEntry >= len(c.timeline.S) {
+			//Segment Timeline end reached
 			if wallClock != nil {
+				//If reference wallclock is present
 				entryStartTime := c.baseWcTime.Add(time.Duration(float64(c.elapsedDurationTicks+c.chunkTimeTicks)*1000000/float64(c.timescale)) * time.Microsecond)
-				log.Printf("%v Start%v <= WC:%v", c.readerBaseContext.ID, entryStartTime.UTC(), wallClock.UTC())
+				log.Printf("%v Start%v < WC:%v", c.ID, entryStartTime.UTC(), wallClock.UTC())
 			}
-			return fmt.Errorf("EndOfSegmentTimeline")
+			return livePointErr{livePointNoEntry, fmt.Errorf("EndOfSegmentTimeline: %w", io.EOF)}
 		}
 		//If entry is nil... ignore move to next entry
 		entry := c.timeline.S[c.curSegTimeLineEntry]
@@ -91,15 +105,15 @@ func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error {
 					values := make([]interface{}, 2)
 					values[0] = c.elapsedDurationTicks
 					values[1] = entry.T
-					if c.readerBaseContext.StatzAgg != nil {
-						(*c.readerBaseContext.StatzAgg).PostEventStats(context.TODO(), &statzagg.EventStats{
+					if c.StatzAgg != nil {
+						(*c.StatzAgg).PostEventStats(context.TODO(), &statzagg.EventStats{
 							EventClock: time.Now(),
-							ID:         c.readerBaseContext.ID,
+							ID:         c.ID,
 							Name:       EvtMp4DurationGapFilled,
 							Values:     values,
 						})
 					}
-					//log.Printf("%v Break in segment", g.id)
+					log.Printf("%v Break in segment", c.ID)
 				}
 			}
 			//TBD - check if timeline is not reversed
@@ -110,33 +124,33 @@ func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error {
 		if wallClock != nil {
 			//StartTime matches
 			if wallClock.Equal(entryStartTime) {
-				log.Printf("%v WC:%v == Start:%v", c.readerBaseContext.ID, wallClock.UTC(), entryStartTime.UTC())
+				log.Printf("%v WC:%v == Start:%v", c.ID, wallClock.UTC(), entryStartTime.UTC())
 				//Found record
-				return nil
+				return livePointErr{livePointOK, nil}
 			}
 			if wallClock.Before(entryStartTime) {
 				values := make([]interface{}, 2)
 				values[0] = wallClock
 				values[1] = entryStartTime
-				if c.readerBaseContext.StatzAgg != nil {
-					(*c.readerBaseContext.StatzAgg).PostEventStats(context.TODO(), &statzagg.EventStats{
+				if c.StatzAgg != nil {
+					(*c.StatzAgg).PostEventStats(context.TODO(), &statzagg.EventStats{
 						EventClock: time.Now(),
-						ID:         c.readerBaseContext.ID,
+						ID:         c.ID,
 						Name:       EvtMPDTimelineInFuture,
 						Values:     values,
 					})
 				}
-				return fmt.Errorf("Entry_in_future by %v (WC:%v, entryStart:%v)", entryStartTime.Sub(*wallClock), wallClock.UTC(), entryStartTime.UTC())
+				return livePointErr{livePointFutureEntry, fmt.Errorf("Entry_in_future by %v (WC:%v, entryStart:%v)", entryStartTime.Sub(*wallClock), wallClock.UTC(), entryStartTime.UTC())}
 			}
 			//Found Entry with Past Starttime
 			//EndTime in Future
 			entryEndTime := entryStartTime.Add(time.Duration(float64(entry.D)*1000000/float64(c.timescale)) * time.Microsecond)
 			if wallClock.Equal(entryEndTime) || wallClock.Before(entryEndTime) {
-				log.Printf("%v Start%v <= WC:%v <= End:%v", c.readerBaseContext.ID, entryStartTime.UTC(), wallClock.UTC(), entryEndTime.UTC())
+				log.Printf("%v Start%v <= WC:%v <= End:%v", c.ID, entryStartTime.UTC(), wallClock.UTC(), entryEndTime.UTC())
 				//Found record
-				return nil
+				return livePointErr{livePointOK, nil}
 			}
-			//log.Printf("%v Start%v End:%v <= WC:%v", c.readerBaseContext.ID, entryStartTime.UTC(), entryEndTime.UTC(), wallClock.UTC())
+			//log.Printf("%v Start%v <= End:%v <= WC:%v", c.ID, entryStartTime.UTC(), entryEndTime.UTC(), wallClock.UTC())
 			c.curEntry++
 			c.chunkTimeTicks += entry.D
 			continue //Check next record
@@ -144,36 +158,36 @@ func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) error {
 		//Just next record
 		c.curEntry++
 		c.chunkTimeTicks += entry.D
-		//log.Printf("%v Current moved to %v", c.readerBaseContext.ID, entryStartTime.UTC())
+		//log.Printf("%v Current moved to %v", c.ID, entryStartTime.UTC())
 		//wallClock is not nil
-		return nil
+		return livePointErr{livePointOK, nil}
 	}
 }
 
-//livePointLocate - Locate the Live Point in the Current MPD
-// Set the context so that next URL fetch will return required values
-func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *MPDtype) error {
-	var periodBaseURL url.URL
-	periodBaseURL = reader.baseURL
+func (c *readerLiveMPDUpdateContext) getActivePeriod(reader readerBase, curMpd *MPDtype) (*PeriodType, time.Time) {
 	pSwc := reader.baseTime
+	log.Printf("Base pSwc : %v", pSwc.UTC())
 	pEwc := time.Time{}
 	//Use PT as the base time to compute live point ref
 	curWc := curMpd.PublishTime
+	log.Printf("PublishTime : %v", curWc.UTC())
 	for _, period := range curMpd.Period {
-		var tURL *url.URL
 		var v time.Duration
 		if IsPresentDuration(period.Start) {
 			// PSwc = lastPSwc + PS
 			v, _ = ParseDuration(period.Start)
 			pSwc = pSwc.Add(v)
+			log.Printf("New pSwc : %v", pSwc.UTC())
 		}
 		if curWc.Before(pSwc) {
-			return fmt.Errorf("No LivePoint Period found")
+			log.Printf("WallClock (%v) < Period Start (%v)", curWc.UTC(), pSwc.UTC())
+			break
 		}
 		if curWc.After(pSwc) {
 			if IsPresentDuration(period.Duration) {
 				v, _ = ParseDuration(period.Duration)
 				pEwc = pSwc.Add(v)
+				log.Printf("New pEwc : %v", pEwc.UTC())
 				if pEwc.Before(curWc) {
 					//The entire period is before curWc
 					continue
@@ -183,87 +197,221 @@ func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *
 		//curWc.Equal(pSwc)
 		//pSwc >= curWc && No Duration present
 		//pSwc >= curWc  < pEwc
-		if err := c.Select(period); err != nil {
-			return fmt.Errorf("For Period(%v) No AdaptationSet selection found : %v", period.Id, err)
+		return &period, pSwc
+	}
+	return nil, pSwc
+}
+
+//adjustRepUpdate - Handle Rep update
+func (c *readerLiveMPDUpdateContext) adjustRepUpdate(reader readerBase, curMpd *MPDtype) error {
+	var periodBaseURL url.URL
+	periodBaseURL = reader.baseURL
+	log.Printf("adjustRepUpdate Begin")
+	defer log.Printf("adjustRepUpdate End")
+
+	//Use PT as the base time to compute live point ref
+	curWc := curMpd.PublishTime
+	log.Printf("PublishTime : %v", curWc.UTC())
+	period, pSwc := c.getActivePeriod(reader, curMpd)
+	if period == nil {
+		return fmt.Errorf("Unable to find Active Period")
+	}
+
+	tURL, err := AdjustURLPath(periodBaseURL, period.BaseURL, "")
+	if err != nil {
+		return fmt.Errorf("Adjusting to Period(%v) BaseURL has error: %v", period.Id, err)
+	}
+	periodBaseURL = *tURL
+	for _, adapt := range period.AdaptationSet {
+		if adapt.ContentType != c.streamSelector.ContentType || adapt.Id != c.adaptSetID {
+			continue
 		}
-		tURL, err := AdjustURLPath(periodBaseURL, period.BaseURL, "")
+		//Found matching AdaptationSet
+		tURL, err := AdjustURLPath(periodBaseURL, adapt.BaseURL, "")
 		if err != nil {
 			return fmt.Errorf("Adjusting to Period(%v) BaseURL has error: %v", period.Id, err)
 		}
-		periodBaseURL = *tURL
-		for _, adapt := range period.AdaptationSet {
-			if adapt.ContentType != c.streamSelector.ContentType || adapt.Id != c.adaptSetID {
+		adaptBaseURL := *tURL
+		for _, rp := range adapt.Representation {
+			if rp.Id != c.repID {
 				continue
 			}
-			//Found matching AdaptationSet
-			tURL, err := AdjustURLPath(periodBaseURL, adapt.BaseURL, "")
+			//Found matching Representation
+			tURL, err := AdjustURLPath(adaptBaseURL, rp.BaseURL, "")
 			if err != nil {
 				return fmt.Errorf("Adjusting to Period(%v) BaseURL has error: %v", period.Id, err)
 			}
-			adaptBaseURL := *tURL
-			for _, rp := range adapt.Representation {
-				if rp.Id != c.repID {
-					continue
-				}
-				//Found matching Representation
-				tURL, err := AdjustURLPath(adaptBaseURL, rp.BaseURL, "")
-				if err != nil {
-					return fmt.Errorf("Adjusting to Period(%v) BaseURL has error: %v", period.Id, err)
-				}
-				rpBaseURL := *tURL
-
-				//Initialize the values
-				c.baseURL = rpBaseURL
-
-				c.baseWcTime = pSwc
-				//Offset any PresentationTimeOffset
-				if rp.SegmentBase.PresentationTimeOffset > 0 {
-					c.baseWcTime = c.baseWcTime.Add(-1 * time.Duration(float64(rp.SegmentBase.PresentationTimeOffset)*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond)
-				}
-				if adapt.SegmentTemplate.PresentationTimeOffset > 0 {
-					c.baseWcTime = c.baseWcTime.Add(-1 * time.Duration(float64(adapt.SegmentTemplate.PresentationTimeOffset)*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond)
-				}
-				//Offset any AvailabilityTimeOffset
-				if adapt.SegmentTemplate.AvailabilityTimeOffset > 0 {
-					c.baseWcTime = c.baseWcTime.Add(time.Duration(adapt.SegmentTemplate.AvailabilityTimeOffset*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond)
-				}
-				c.timeline = adapt.SegmentTemplate.SegmentTimeline
-				c.timescale = adapt.SegmentTemplate.Timescale
-
-				c.isNumber = reader.isNumber
-				c.isTime = reader.isTime
-				if len(adapt.SegmentTemplate.Initialization.SourceURL) > 0 {
-					temp := strings.ReplaceAll(adapt.SegmentTemplate.Initialization.SourceURL, "$RepresentationID$", string(rp.Id))
-					v, err := AdjustURLPath(rpBaseURL, []BaseURLType{}, temp)
-					if err != nil {
-						return fmt.Errorf("Adjusting to Representation(%v) BaseURL has error: %v", rp.Id, err)
-					}
-					c.initURL = *v
-					c.initRange = adapt.SegmentTemplate.Initialization.Range
-					c.binitURLServed = false //to be supplied
-				} else {
-					c.initURL = url.URL{}
-					c.initRange = ""
-					c.binitURLServed = true //mark already supplied so that it is not done
-				}
-				temp := strings.ReplaceAll(adapt.SegmentTemplate.Media, "$RepresentationID$", string(rp.Id))
+			rpBaseURL := *tURL
+			baseWcTime := pSwc
+			//Offset any PresentationTimeOffset
+			if rp.SegmentBase.PresentationTimeOffset > 0 {
+				baseWcTime = baseWcTime.Add(-1 * time.Duration(float64(rp.SegmentBase.PresentationTimeOffset)*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond)
+			}
+			if adapt.SegmentTemplate.PresentationTimeOffset > 0 {
+				baseWcTime = baseWcTime.Add(-1 * time.Duration(float64(adapt.SegmentTemplate.PresentationTimeOffset)*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond)
+			}
+			//Offset any AvailabilityTimeOffset
+			if adapt.SegmentTemplate.AvailabilityTimeOffset > 0 {
+				baseWcTime = baseWcTime.Add(time.Duration(adapt.SegmentTemplate.AvailabilityTimeOffset*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond)
+			}
+			//Check if BaseWCTime is not modified
+			if baseWcTime != c.baseWcTime {
+				return fmt.Errorf("BaseTime mismatch (%v,%v,%v) C %v != Wc %v)", period.Id, adapt.Id, rp.Id, c.baseWcTime, baseWcTime)
+			}
+			//Nothing has changed
+			//update only required field
+			if len(adapt.SegmentTemplate.Initialization.SourceURL) > 0 {
+				temp := strings.ReplaceAll(adapt.SegmentTemplate.Initialization.SourceURL, "$RepresentationID$", string(rp.Id))
 				v, err := AdjustURLPath(rpBaseURL, []BaseURLType{}, temp)
 				if err != nil {
 					return fmt.Errorf("Adjusting to Representation(%v) BaseURL has error: %v", rp.Id, err)
 				}
-				c.baseURL = *v
-				c.curSegTimeLineEntry = 0
-				c.curEntry = 0
-				c.chunkNumber = 0
-				c.chunkTimeTicks = 0
-				c.elapsedDurationTicks = 0
-				c.startNumber = adapt.SegmentTemplate.StartNumber
-				return c.moveToNext(&curWc)
+				c.initURL = *v
+				c.initRange = adapt.SegmentTemplate.Initialization.Range
+				c.binitURLServed = false //to be supplied
+			} else {
+				c.initURL = url.URL{}
+				c.initRange = ""
+				c.binitURLServed = true //mark already supplied so that it is not done
 			}
+			temp := strings.ReplaceAll(adapt.SegmentTemplate.Media, "$RepresentationID$", string(rp.Id))
+			v, err := AdjustURLPath(rpBaseURL, []BaseURLType{}, temp)
+			if err != nil {
+				return fmt.Errorf("Adjusting to Representation(%v) BaseURL has error: %v", rp.Id, err)
+			}
+			entryStartTime := c.baseWcTime.Add(time.Duration(float64(c.elapsedDurationTicks+c.chunkTimeTicks)*1000000/float64(c.timescale)) * time.Microsecond)
+			c.timeline = adapt.SegmentTemplate.SegmentTimeline
+			c.baseURL = *v
+			c.curSegTimeLineEntry = 0
+			c.curEntry = 0
+			c.chunkNumber = 0
+			c.chunkTimeTicks = 0
+			c.elapsedDurationTicks = 0
+			c.startNumber = adapt.SegmentTemplate.StartNumber
+			if entryStartTime.Before(curWc) {
+				entryStartTime = entryStartTime.UTC().Add(1 * time.Microsecond)
+				log.Printf("Move (%v) To WallClock entryStartTime %v Begin %v", c.ID, curWc.UTC(), entryStartTime)
+				curWc = entryStartTime
+			}
+			livePointErr := c.moveToNext(&curWc)
+			log.Printf("Update %v %v", livePointErr.errType, livePointErr.err)
+			switch livePointErr.errType {
+			case livePointNoEntry:
+				//No Entry ... update without new Timeline addition
+				livePointErr.err = nil
+			case livePointFutureEntry:
+				//Entry in future
+				livePointErr.err = nil
+			}
+			return livePointErr.err
 		}
-		return fmt.Errorf("Representation(%v:%v) not found", c.adaptSetID, c.repID)
 	}
-	return fmt.Errorf("Active Period not found")
+	return fmt.Errorf("Representation(%v:%v) not found", c.adaptSetID, c.repID)
+}
+
+//livePointLocate - Locate the Live Point in the Current MPD
+// Set the context so that next URL fetch will return required values
+func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *MPDtype) error {
+	log.Printf("livePointLocate Begin")
+	defer log.Printf("livePointLocate End")
+
+	var periodBaseURL url.URL
+	periodBaseURL = reader.baseURL
+
+	//Use PT as the base time to compute live point ref
+	curWc := curMpd.PublishTime
+	log.Printf("PublishTime : %v", curWc.UTC())
+
+	period, pSwc := c.getActivePeriod(reader, curMpd)
+	if period == nil {
+		return fmt.Errorf("Unable to find Active Period")
+	}
+	if err := c.Select(*period); err != nil {
+		return fmt.Errorf("For Period(%v) No AdaptationSet selection found : %v", period.Id, err)
+	}
+	tURL, err := AdjustURLPath(periodBaseURL, period.BaseURL, "")
+	if err != nil {
+		return fmt.Errorf("Adjusting to Period(%v) BaseURL has error: %v", period.Id, err)
+	}
+	periodBaseURL = *tURL
+	for _, adapt := range period.AdaptationSet {
+		if adapt.ContentType != c.streamSelector.ContentType || adapt.Id != c.adaptSetID {
+			continue
+		}
+		//Found matching AdaptationSet
+		tURL, err := AdjustURLPath(periodBaseURL, adapt.BaseURL, "")
+		if err != nil {
+			return fmt.Errorf("Adjusting to Period(%v) BaseURL has error: %v", period.Id, err)
+		}
+		adaptBaseURL := *tURL
+		for _, rp := range adapt.Representation {
+			if rp.Id != c.repID {
+				continue
+			}
+			//Found matching Representation
+			tURL, err := AdjustURLPath(adaptBaseURL, rp.BaseURL, "")
+			if err != nil {
+				return fmt.Errorf("Adjusting to Period(%v) BaseURL has error: %v", period.Id, err)
+			}
+			rpBaseURL := *tURL
+
+			//Initialize the values
+			c.baseURL = rpBaseURL
+			c.timescale = adapt.SegmentTemplate.Timescale
+
+			c.baseWcTime = pSwc
+			log.Printf("baseWcTime : %v", c.baseWcTime.UTC())
+			//Offset any PresentationTimeOffset
+			if rp.SegmentBase.PresentationTimeOffset > 0 {
+				d := time.Duration(float64(rp.SegmentBase.PresentationTimeOffset)*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond
+				c.baseWcTime = c.baseWcTime.Add(-1 * d)
+				log.Printf("baseWcTime + SB.PresentationTimeOffset (%v): %v", d, c.baseWcTime.UTC())
+			}
+			if adapt.SegmentTemplate.PresentationTimeOffset > 0 {
+				d := time.Duration(float64(adapt.SegmentTemplate.PresentationTimeOffset)*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond
+				c.baseWcTime = c.baseWcTime.Add(-1 * d)
+				log.Printf("baseWcTime + ST.PresentationTimeOffset (%v): %v", d, c.baseWcTime.UTC())
+			}
+			//Offset any AvailabilityTimeOffset
+			if adapt.SegmentTemplate.AvailabilityTimeOffset > 0 {
+				d := time.Duration(adapt.SegmentTemplate.AvailabilityTimeOffset*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond
+				c.baseWcTime = c.baseWcTime.Add(d)
+				log.Printf("baseWcTime + ST.PresentationTimeOffset (%v): %v", d, c.baseWcTime.UTC())
+			}
+			c.timeline = adapt.SegmentTemplate.SegmentTimeline
+			c.isNumber = reader.isNumber
+			c.isTime = reader.isTime
+			if len(adapt.SegmentTemplate.Initialization.SourceURL) > 0 {
+				temp := strings.ReplaceAll(adapt.SegmentTemplate.Initialization.SourceURL, "$RepresentationID$", string(rp.Id))
+				v, err := AdjustURLPath(rpBaseURL, []BaseURLType{}, temp)
+				if err != nil {
+					return fmt.Errorf("Adjusting to Representation(%v) BaseURL has error: %v", rp.Id, err)
+				}
+				c.initURL = *v
+				c.initRange = adapt.SegmentTemplate.Initialization.Range
+				c.binitURLServed = false //to be supplied
+			} else {
+				c.initURL = url.URL{}
+				c.initRange = ""
+				c.binitURLServed = true //mark already supplied so that it is not done
+			}
+			temp := strings.ReplaceAll(adapt.SegmentTemplate.Media, "$RepresentationID$", string(rp.Id))
+			v, err := AdjustURLPath(rpBaseURL, []BaseURLType{}, temp)
+			if err != nil {
+				return fmt.Errorf("Adjusting to Representation(%v) BaseURL has error: %v", rp.Id, err)
+			}
+			c.baseURL = *v
+			c.curSegTimeLineEntry = 0
+			c.curEntry = 0
+			c.chunkNumber = 0
+			c.chunkTimeTicks = 0
+			c.elapsedDurationTicks = 0
+			c.startNumber = adapt.SegmentTemplate.StartNumber
+			livePointErr := c.moveToNext(&curWc)
+			return livePointErr.err
+		}
+	}
+	return fmt.Errorf("Representation(%v:%v) not found", c.adaptSetID, c.repID)
 }
 
 //getURL - Returns current URL
