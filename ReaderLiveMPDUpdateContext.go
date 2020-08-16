@@ -370,6 +370,11 @@ func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *
 			}
 			rpBaseURL := *tURL
 
+			c.contentType = adapt.ContentType
+			c.lang = adapt.Lang
+			c.codecs = rp.Codecs
+			c.frameRate, _ = GetFrameRate(string(rp.FrameRate))
+
 			//Initialize the values
 			c.baseURL = rpBaseURL
 			c.timescale = adapt.SegmentTemplate.Timescale

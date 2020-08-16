@@ -100,7 +100,7 @@ func TestNManifest(t *testing.T) {
 	representationSelector := dashreader.MinBWRepresentationSelector{}
 	streamSelector := dashreader.StreamSelector{
 		ID:          "1",
-		ContentType: "video",
+		ContentType: "audio",
 	}
 	logStatzAgg := statzagg.NewLogStatzAgg(os.Stdout)
 	t.Logf("================ %v =================", urlTest)
@@ -136,6 +136,9 @@ func TestNManifest(t *testing.T) {
 			newRdrCtx, err = getReaderCtx(t, rdr, readCtx, streamSelector, representationSelector)
 			readCtx = newRdrCtx
 			if err == nil {
+				t.Logf("FrameRate: %v", readCtx.GetFramerate())
+				t.Logf("ContentType: %v", readCtx.GetContentType())
+				t.Logf("Lang: %v", readCtx.GetLang())
 				err = printURLs(t, readCtx)
 			}
 			t.Logf("---------------- %v ----------------", urlTest)

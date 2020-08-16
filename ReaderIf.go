@@ -44,6 +44,15 @@ type ReaderContext interface {
 	//   1: Channel of URLs, can be read till closed
 	//   2: error
 	NextURLs(context.Context) (<-chan ChunkURL, error)
+
+	//GetFramerate - Framerate of content
+	GetFramerate() float64
+	//GetContentType - Content Type of content
+	GetContentType() string
+	//GetLang - Lang of content
+	GetLang() string
+	//GetCodecs - Codecs of content
+	GetCodecs() string
 }
 
 //Reader - Read any DASH file and get Playback URLs

@@ -17,6 +17,12 @@ type readerBaseContext struct {
 	streamSelector StreamSelector         //Selector for stream
 	adaptSetID     uint                   //ID of adapatationSet
 	repID          StringNoWhitespaceType //selected RepresentationID
+
+	//Context fields
+	frameRate   float64
+	lang        string
+	contentType string
+	codecs      string
 }
 
 //Select - select AdaptationSet and Representation
@@ -60,19 +66,19 @@ func (c *readerBaseContext) selectAdapationSets(p PeriodType) *AdaptationSetType
 	var ret *AdaptationSetType
 	ret = nil
 	lastMatchResp := MatchResultDontCare
-	for _, adaptSet := range p.AdaptationSet {
+	for i := range p.AdaptationSet {
 		//Valid ContentType Check
-		if len(adaptSet.ContentType) <= 0 {
+		if len(p.AdaptationSet[i].ContentType) <= 0 {
 			continue
 		}
-		matchResp := c.streamSelector.IsMatch(adaptSet)
+		matchResp := c.streamSelector.IsMatch(p.AdaptationSet[i])
 		//Check if it is not a match
 		if matchResp == MatchResultNotFound {
 			continue
 		}
 		//Check if found first time or this is a better match
 		if ret == nil || matchResp > lastMatchResp {
-			ret = &adaptSet
+			ret = &p.AdaptationSet[i]
 			matchResp = lastMatchResp
 		}
 	}
@@ -159,4 +165,24 @@ func (c *readerBaseContext) getURLs(ctx context.Context, rdrCtx ReaderContext) (
 		}
 	}(ctx, rdrCtx, ch, *chunkURL)
 	return ch, nil
+}
+
+//GetFramerate - Framerate of content
+func (c *readerBaseContext) GetFramerate() float64 {
+	return c.frameRate
+}
+
+//GetContentType - Content Type of content
+func (c *readerBaseContext) GetContentType() string {
+	return c.contentType
+}
+
+//GetLang - Lang of content
+func (c *readerBaseContext) GetLang() string {
+	return c.lang
+}
+
+//GetCodecs - Codecs of content
+func (c *readerBaseContext) GetCodecs() string {
+	return c.codecs
 }
