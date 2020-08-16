@@ -3,6 +3,7 @@ package dashreader
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/eswarantg/statzagg"
 )
@@ -11,7 +12,7 @@ import (
 type readerBaseContext struct {
 	ID             string                 //ID for the ReaderContext
 	updCounter     int64                  //to sync between Context and Reader
-	StatzAgg       *statzagg.StatzAgg     //Statz Agg
+	StatzAgg       statzagg.StatzAgg      //Statz Agg
 	repSelector    RepresentationSelector //Selector for Representation
 	streamSelector StreamSelector         //Selector for stream
 	adaptSetID     uint                   //ID of adapatationSet
@@ -22,11 +23,31 @@ type readerBaseContext struct {
 func (c *readerBaseContext) Select(p PeriodType) error {
 	adaptSet := c.selectAdapationSets(p)
 	if adaptSet == nil {
+		if c.StatzAgg != nil {
+			values := make([]interface{}, 1)
+			values[0] = len(p.AdaptationSet)
+			c.StatzAgg.PostEventStats(context.TODO(), &statzagg.EventStats{
+				EventClock: time.Now(),
+				ID:         c.ID,
+				Name:       EvtMPDNoAdaptAfterFilter,
+				Values:     values,
+			})
+		}
 		return fmt.Errorf("ReaderContext(%v) no AdaptationSet selected", c.ID)
 	}
 	reps := c.filterRepresentation(*adaptSet)
 	rep := c.repSelector.SelectRepresentation(reps)
 	if rep == nil {
+		if c.StatzAgg != nil {
+			values := make([]interface{}, 1)
+			values[0] = len(adaptSet.Representation)
+			c.StatzAgg.PostEventStats(context.TODO(), &statzagg.EventStats{
+				EventClock: time.Now(),
+				ID:         c.ID,
+				Name:       EvtMPDNoRepresentationAfterFilter,
+				Values:     values,
+			})
+		}
 		return fmt.Errorf("ReaderContext(%v) AdaptationSet(%v) no Representation selected", c.ID, adaptSet.Id)
 	}
 	c.adaptSetID = adaptSet.Id
@@ -121,19 +142,21 @@ func (c *readerBaseContext) getURLs(ctx context.Context, rdrCtx ReaderContext) (
 		return nil, err
 	}
 	ch := make(chan ChunkURL, 10)
-	go func(ch ChunkURLChannel, chunkURL *ChunkURL) {
+	go func(ctx context.Context, rdrCtx ReaderContext, ch ChunkURLChannel, chunkURL ChunkURL) {
 		defer close(ch)
-		ch <- *chunkURL
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			chunkURL, err = rdrCtx.NextURL()
-			if err != nil {
+		ch <- chunkURL
+		for {
+			select {
+			case <-ctx.Done():
 				return
+			default:
+				chunkURL, err := rdrCtx.NextURL()
+				if err != nil {
+					return
+				}
+				ch <- *chunkURL
 			}
-			ch <- *chunkURL
 		}
-	}(ch, chunkURL)
+	}(ctx, rdrCtx, ch, *chunkURL)
 	return ch, nil
 }

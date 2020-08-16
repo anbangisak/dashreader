@@ -38,6 +38,7 @@ func (r *readerLiveMPDUpdate) MakeDASHReaderContext(rdrCtx ReaderContext, stream
 				updCounter:     0,
 				repSelector:    repSelector,
 				streamSelector: streamSelector,
+				StatzAgg:       r.StatzAgg,
 			},
 		}
 	}
@@ -55,7 +56,6 @@ func (r *readerLiveMPDUpdate) MakeDASHReaderContext(rdrCtx ReaderContext, stream
 		}
 		err := curContext.adjustRepUpdate(r.readerBase, curMpd)
 		if err == nil {
-			log.Printf("Adjust Rep Update Done")
 			return &curContext, nil
 		}
 		//Gaps TBD
@@ -68,6 +68,5 @@ func (r *readerLiveMPDUpdate) MakeDASHReaderContext(rdrCtx ReaderContext, stream
 		//Don't return the newly created context
 		return nil, fmt.Errorf("LivePoint Locate Failed: %w", err)
 	}
-	log.Printf("livePoint Locate Done")
 	return &curContext, nil
 }

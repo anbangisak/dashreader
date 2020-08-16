@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/url"
 	"time"
+
+	"github.com/eswarantg/statzagg"
 )
 
 //ChunkURL - URL extracted from MPD for playback
@@ -63,4 +65,11 @@ type Reader interface {
 	//   1: Context for current AdaptationSet,Representation
 	//   2: error
 	MakeDASHReaderContext(ReaderContext, StreamSelector, RepresentationSelector) (ReaderContext, error)
+
+	//SetStatzAgg - Set StatzAgg for event forwarding
+	// Parameters;
+	//   StatzAgg
+	// Return:
+	//   NA
+	SetStatzAgg(statzAgg statzagg.StatzAgg)
 }

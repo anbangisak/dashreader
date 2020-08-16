@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eswarantg/dashreader"
+	"github.com/eswarantg/statzagg"
 )
 
 func getMPD(t *testing.T, url string) (mpd *dashreader.MPDtype, err error) {
@@ -55,7 +57,9 @@ func getReaderCtx(t *testing.T, rdr dashreader.Reader,
 func printURLs(t *testing.T, readCtx dashreader.ReaderContext) (err error) {
 	urlChan, err := readCtx.NextURLs(context.TODO())
 	if err != nil {
-		t.Errorf("Error getting urls : %v", err)
+		if err != io.EOF {
+			t.Errorf("Error getting urls : %v", err)
+		}
 		return
 	}
 	for url := range urlChan {
@@ -98,6 +102,7 @@ func TestNManifest(t *testing.T) {
 		ID:          "1",
 		ContentType: "video",
 	}
+	logStatzAgg := statzagg.NewLogStatzAgg(os.Stdout)
 	t.Logf("================ %v =================", urlTest)
 	mpd, err := getMPD(t, urlTest)
 	if err != nil {
@@ -108,6 +113,7 @@ func TestNManifest(t *testing.T) {
 	if err != nil {
 		return
 	}
+	rdr.SetStatzAgg(logStatzAgg)
 	var wg sync.WaitGroup
 	ch := make(chan bool)
 	wg.Add(1)
@@ -118,6 +124,12 @@ func TestNManifest(t *testing.T) {
 		var newRdrCtx dashreader.ReaderContext
 		var err error
 		for {
+			select {
+			case _, ok := <-ch:
+				if !ok {
+					return
+				}
+			}
 			i++
 			t.Logf("\n Run %v", i)
 			t.Logf("---------------- %v ----------------", urlTest)
@@ -127,16 +139,10 @@ func TestNManifest(t *testing.T) {
 				err = printURLs(t, readCtx)
 			}
 			t.Logf("---------------- %v ----------------", urlTest)
-			select {
-			case _, ok := <-ch:
-				if !ok {
-					return
-				}
-			}
 		}
 	}(ch)
-	N := 10
-	d := 1 * time.Second
+	N := 20
+	d := 2 * time.Second
 	if len(mpd.MinimumUpdatePeriod) > 0 {
 		v, err := dashreader.ParseDuration(mpd.MinimumUpdatePeriod)
 		if err != nil {

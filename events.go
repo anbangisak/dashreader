@@ -2,26 +2,12 @@ package dashreader
 
 //EVENT NAMES
 const (
-	EvtMp4DurationGapFilled = "MP4_DurationGap_Filled"  //Filled duration gap
-	EvtMPDTimelineInFuture  = "MPD_ERR_TIMELINE_FUTURE" //TimeLine in Future - WC, StartTime
-/*
-	EvtNewMPD                = "NEW_MPD"                  //Received new MPD file - No Fields
-	EvtUpdMPD                = "UPD_MPD"                  //Received MPD update - Update Delta
-	EvtMPDFetchFail          = "MPD_FETCH_FAIL"           //Fetch failed
-	EvtMPDNoPublishTime      = "MPD_ERR_NO_PUBLISHTIME"   //PublishTime not present
-	EvtMPDBadPublishTime     = "MPD_ERR_BAD_PUBLISHTIME"  //PublishTime not invalid - Bad value
-	EvtMPDBadMinUpdatePeriod = "MPD_ERR_BAD_MINUPDPERIOD" //MinUpdatePeriod not invalid - Bad value
-	EvtMPDPeriodInFuture     = "MPD_PERIOD_FUTURE"        //Period timeline in future - WC, StartTime
+	EvtMPDTimelineGapFilled           = "MPD_ERR_TIMELINE_GAP"               //Filled duration gap
+	EvtMPDTimelineInFuture            = "MPD_ERR_TIMELINE_FUTURE"            //TimeLine in Future - WC, StartTime
+	EvtMPDTimelineNoLivePointEntries  = "MPD_ERR_NO_LIVEPOINT_ENTRIES"       //No Entries found
+	EvtMPDPublishTimeOld              = "MPD_PUBLISH_TIME_OLD"               //Publish time is older than previous
+	EvtMPDNoActivePeriod              = "MPD_NO_ACTIVE_PERIOD"               //Period active not found
+	EvtMPDNoAdaptAfterFilter          = "MPD_NO_ADAPT_AFTER_FILTER"          //No AdaptationSets after filter
+	EvtMPDNoRepresentationAfterFilter = "MPD_NO_REPRESENTATION_AFTER_FILTER" //No Representations after filter
 
-
-	EvtClientBitRateSelect   = "CLIENT_BITRATE_SELECTED"  //Bitrate is selected by client - Bitrate
-	EvtClientContentAbsent   = "CLIENT_DRAINED"           //Client Drained - Duration of data missing
-	EvtClientAllRepsFiltered = "CLIENT_ALL_REPS_FILTERED" //All Representations filtered
-
-	EvtMp4TimeScaleAltered  = "MP4_TIMESCALE_MODIFIED" //TimeScale modified
-	EvtMp4TrackIDAltered    = "MP4_TRACKID_MODIFIED"   //TrackID modified
-	EvtMp4NoBoxTime         = "MP4_NO_BOX_TIME"        //Box Time cannot be determined
-	EvtMp4SequenceMissed    = "MP4_Sequence_Missed"    //Box Time cannot be determined
-
-*/
 )

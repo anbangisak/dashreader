@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/url"
 	"strconv"
 	"strings"
@@ -54,7 +53,7 @@ type readerLiveMPDUpdateContext struct {
 // Set the context so that next URL fetch will return required values
 func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) livePointErr {
 	if wallClock != nil {
-		log.Printf("moveToNext %v", wallClock.UTC())
+		//log.Printf("moveToNext %v", wallClock.UTC())
 	}
 	//c.baseWcTime - Reference Time
 	//c.elapsedDurationTicks is record base time from baseTime
@@ -68,7 +67,18 @@ func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) livePointE
 			if wallClock != nil {
 				//If reference wallclock is present
 				entryStartTime := c.baseWcTime.Add(time.Duration(float64(c.elapsedDurationTicks+c.chunkTimeTicks)*1000000/float64(c.timescale)) * time.Microsecond)
-				log.Printf("%v Start%v < WC:%v", c.ID, entryStartTime.UTC(), wallClock.UTC())
+				if c.StatzAgg != nil {
+					values := make([]interface{}, 2)
+					values[0] = wallClock
+					values[1] = entryStartTime
+					c.StatzAgg.PostEventStats(context.TODO(), &statzagg.EventStats{
+						EventClock: time.Now(),
+						ID:         c.ID,
+						Name:       EvtMPDTimelineNoLivePointEntries,
+						Values:     values,
+					})
+				}
+				//log.Printf("%v Start%v < WC:%v", c.ID, entryStartTime.UTC(), wallClock.UTC())
 			}
 			return livePointErr{livePointNoEntry, fmt.Errorf("EndOfSegmentTimeline: %w", io.EOF)}
 		}
@@ -102,18 +112,18 @@ func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) livePointE
 				//Check if this is the first entry
 				if c.curEntry != 0 || c.curSegTimeLineEntry != 0 {
 					//if diff found... break in timeline
-					values := make([]interface{}, 2)
-					values[0] = c.elapsedDurationTicks
-					values[1] = entry.T
 					if c.StatzAgg != nil {
-						(*c.StatzAgg).PostEventStats(context.TODO(), &statzagg.EventStats{
+						values := make([]interface{}, 2)
+						values[0] = c.elapsedDurationTicks
+						values[1] = entry.T
+						c.StatzAgg.PostEventStats(context.TODO(), &statzagg.EventStats{
 							EventClock: time.Now(),
 							ID:         c.ID,
-							Name:       EvtMp4DurationGapFilled,
+							Name:       EvtMPDTimelineGapFilled,
 							Values:     values,
 						})
 					}
-					log.Printf("%v Break in segment", c.ID)
+					//log.Printf("%v Break in segment", c.ID)
 				}
 			}
 			//TBD - check if timeline is not reversed
@@ -124,16 +134,16 @@ func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) livePointE
 		if wallClock != nil {
 			//StartTime matches
 			if wallClock.Equal(entryStartTime) {
-				log.Printf("%v WC:%v == Start:%v", c.ID, wallClock.UTC(), entryStartTime.UTC())
+				//log.Printf("%v WC:%v == Start:%v", c.ID, wallClock.UTC(), entryStartTime.UTC())
 				//Found record
 				return livePointErr{livePointOK, nil}
 			}
 			if wallClock.Before(entryStartTime) {
-				values := make([]interface{}, 2)
-				values[0] = wallClock
-				values[1] = entryStartTime
 				if c.StatzAgg != nil {
-					(*c.StatzAgg).PostEventStats(context.TODO(), &statzagg.EventStats{
+					values := make([]interface{}, 2)
+					values[0] = wallClock
+					values[1] = entryStartTime
+					c.StatzAgg.PostEventStats(context.TODO(), &statzagg.EventStats{
 						EventClock: time.Now(),
 						ID:         c.ID,
 						Name:       EvtMPDTimelineInFuture,
@@ -146,7 +156,7 @@ func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) livePointE
 			//EndTime in Future
 			entryEndTime := entryStartTime.Add(time.Duration(float64(entry.D)*1000000/float64(c.timescale)) * time.Microsecond)
 			if wallClock.Equal(entryEndTime) || wallClock.Before(entryEndTime) {
-				log.Printf("%v Start%v <= WC:%v <= End:%v", c.ID, entryStartTime.UTC(), wallClock.UTC(), entryEndTime.UTC())
+				//log.Printf("%v Start%v <= WC:%v <= End:%v", c.ID, entryStartTime.UTC(), wallClock.UTC(), entryEndTime.UTC())
 				//Found record
 				return livePointErr{livePointOK, nil}
 			}
@@ -166,28 +176,28 @@ func (c *readerLiveMPDUpdateContext) moveToNext(wallClock *time.Time) livePointE
 
 func (c *readerLiveMPDUpdateContext) getActivePeriod(reader readerBase, curMpd *MPDtype) (*PeriodType, time.Time) {
 	pSwc := reader.baseTime
-	log.Printf("Base pSwc : %v", pSwc.UTC())
+	//log.Printf("Base pSwc : %v", pSwc.UTC())
 	pEwc := time.Time{}
 	//Use PT as the base time to compute live point ref
 	curWc := curMpd.PublishTime
-	log.Printf("PublishTime : %v", curWc.UTC())
+	//log.Printf("PublishTime : %v", curWc.UTC())
 	for _, period := range curMpd.Period {
 		var v time.Duration
 		if IsPresentDuration(period.Start) {
 			// PSwc = lastPSwc + PS
 			v, _ = ParseDuration(period.Start)
 			pSwc = pSwc.Add(v)
-			log.Printf("New pSwc : %v", pSwc.UTC())
+			//log.Printf("New pSwc : %v", pSwc.UTC())
 		}
 		if curWc.Before(pSwc) {
-			log.Printf("WallClock (%v) < Period Start (%v)", curWc.UTC(), pSwc.UTC())
+			//log.Printf("WallClock (%v) < Period Start (%v)", curWc.UTC(), pSwc.UTC())
 			break
 		}
 		if curWc.After(pSwc) {
 			if IsPresentDuration(period.Duration) {
 				v, _ = ParseDuration(period.Duration)
 				pEwc = pSwc.Add(v)
-				log.Printf("New pEwc : %v", pEwc.UTC())
+				//log.Printf("New pEwc : %v", pEwc.UTC())
 				if pEwc.Before(curWc) {
 					//The entire period is before curWc
 					continue
@@ -199,6 +209,16 @@ func (c *readerLiveMPDUpdateContext) getActivePeriod(reader readerBase, curMpd *
 		//pSwc >= curWc  < pEwc
 		return &period, pSwc
 	}
+	if c.StatzAgg != nil {
+		values := make([]interface{}, 1)
+		values[0] = len(curMpd.Period)
+		c.StatzAgg.PostEventStats(context.TODO(), &statzagg.EventStats{
+			EventClock: time.Now(),
+			ID:         c.ID,
+			Name:       EvtMPDNoActivePeriod,
+			Values:     values,
+		})
+	}
 	return nil, pSwc
 }
 
@@ -206,12 +226,10 @@ func (c *readerLiveMPDUpdateContext) getActivePeriod(reader readerBase, curMpd *
 func (c *readerLiveMPDUpdateContext) adjustRepUpdate(reader readerBase, curMpd *MPDtype) error {
 	var periodBaseURL url.URL
 	periodBaseURL = reader.baseURL
-	log.Printf("adjustRepUpdate Begin")
-	defer log.Printf("adjustRepUpdate End")
 
 	//Use PT as the base time to compute live point ref
 	curWc := curMpd.PublishTime
-	log.Printf("PublishTime : %v", curWc.UTC())
+	//log.Printf("PublishTime : %v", curWc.UTC())
 	period, pSwc := c.getActivePeriod(reader, curMpd)
 	if period == nil {
 		return fmt.Errorf("Unable to find Active Period")
@@ -290,11 +308,11 @@ func (c *readerLiveMPDUpdateContext) adjustRepUpdate(reader readerBase, curMpd *
 			c.startNumber = adapt.SegmentTemplate.StartNumber
 			if entryStartTime.Before(curWc) {
 				entryStartTime = entryStartTime.UTC().Add(1 * time.Microsecond)
-				log.Printf("Move (%v) To WallClock entryStartTime %v Begin %v", c.ID, curWc.UTC(), entryStartTime)
+				//log.Printf("Move (%v) To WallClock entryStartTime %v Begin %v", c.ID, curWc.UTC(), entryStartTime)
 				curWc = entryStartTime
 			}
 			livePointErr := c.moveToNext(&curWc)
-			log.Printf("Update %v %v", livePointErr.errType, livePointErr.err)
+			//log.Printf("Update %v %v", livePointErr.errType, livePointErr.err)
 			switch livePointErr.errType {
 			case livePointNoEntry:
 				//No Entry ... update without new Timeline addition
@@ -312,15 +330,12 @@ func (c *readerLiveMPDUpdateContext) adjustRepUpdate(reader readerBase, curMpd *
 //livePointLocate - Locate the Live Point in the Current MPD
 // Set the context so that next URL fetch will return required values
 func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *MPDtype) error {
-	log.Printf("livePointLocate Begin")
-	defer log.Printf("livePointLocate End")
-
 	var periodBaseURL url.URL
 	periodBaseURL = reader.baseURL
 
 	//Use PT as the base time to compute live point ref
 	curWc := curMpd.PublishTime
-	log.Printf("PublishTime : %v", curWc.UTC())
+	//log.Printf("PublishTime : %v", curWc.UTC())
 
 	period, pSwc := c.getActivePeriod(reader, curMpd)
 	if period == nil {
@@ -360,23 +375,23 @@ func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *
 			c.timescale = adapt.SegmentTemplate.Timescale
 
 			c.baseWcTime = pSwc
-			log.Printf("baseWcTime : %v", c.baseWcTime.UTC())
+			//log.Printf("baseWcTime : %v", c.baseWcTime.UTC())
 			//Offset any PresentationTimeOffset
 			if rp.SegmentBase.PresentationTimeOffset > 0 {
 				d := time.Duration(float64(rp.SegmentBase.PresentationTimeOffset)*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond
 				c.baseWcTime = c.baseWcTime.Add(-1 * d)
-				log.Printf("baseWcTime + SB.PresentationTimeOffset (%v): %v", d, c.baseWcTime.UTC())
+				//log.Printf("baseWcTime + SB.PresentationTimeOffset (%v): %v", d, c.baseWcTime.UTC())
 			}
 			if adapt.SegmentTemplate.PresentationTimeOffset > 0 {
 				d := time.Duration(float64(adapt.SegmentTemplate.PresentationTimeOffset)*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond
 				c.baseWcTime = c.baseWcTime.Add(-1 * d)
-				log.Printf("baseWcTime + ST.PresentationTimeOffset (%v): %v", d, c.baseWcTime.UTC())
+				//log.Printf("baseWcTime + ST.PresentationTimeOffset (%v): %v", d, c.baseWcTime.UTC())
 			}
 			//Offset any AvailabilityTimeOffset
 			if adapt.SegmentTemplate.AvailabilityTimeOffset > 0 {
 				d := time.Duration(adapt.SegmentTemplate.AvailabilityTimeOffset*1000000/float64(adapt.SegmentTemplate.Timescale)) * time.Microsecond
 				c.baseWcTime = c.baseWcTime.Add(d)
-				log.Printf("baseWcTime + ST.PresentationTimeOffset (%v): %v", d, c.baseWcTime.UTC())
+				//log.Printf("baseWcTime + ST.PresentationTimeOffset (%v): %v", d, c.baseWcTime.UTC())
 			}
 			c.timeline = adapt.SegmentTemplate.SegmentTimeline
 			c.isNumber = reader.isNumber
@@ -418,17 +433,15 @@ func (c *readerLiveMPDUpdateContext) livePointLocate(reader readerBase, curMpd *
 //Return:
 //  1: Current available url
 //  2: Error=io.EOF if not present
-func (c *readerLiveMPDUpdateContext) getURL() (ret *S, err error) {
+func (c readerLiveMPDUpdateContext) getURL() (ret *S, err error) {
 	//Check if within given timeline
 	if c.curSegTimeLineEntry >= len(c.timeline.S) {
 		return nil, io.EOF
 	}
 	//If entry is nil... ignore move to next entry
 	entry := c.timeline.S[c.curSegTimeLineEntry]
-	//Assume repeat = 1
-	repeatCount := 1
 	//number of entry = given value + 1
-	repeatCount = entry.R + 1
+	repeatCount := entry.R + 1
 	//Check if we are done with all entries
 	if c.curEntry >= repeatCount {
 		return nil, io.EOF

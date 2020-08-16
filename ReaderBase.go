@@ -1,19 +1,32 @@
 package dashreader
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/eswarantg/statzagg"
 )
 
 //readerBase - Fixed values created first time
 type readerBase struct {
-	ID       string    //ID for the Reader
-	baseTime time.Time //WallClock time of start of period
-	baseURL  url.URL   //Base URL
-	isNumber bool      //Number pattern
-	isTime   bool      //Time pattern
+	ID       string            //ID for the Reader
+	baseTime time.Time         //WallClock time of start of period
+	baseURL  url.URL           //Base URL
+	isNumber bool              //Number pattern
+	isTime   bool              //Time pattern
+	StatzAgg statzagg.StatzAgg //Statz Agg
+}
+
+//SetStatzAgg - Set StatzAgg for event forwarding
+// Parameters;
+//   StatzAgg
+// Return:
+//   NA
+func (r *readerBase) SetStatzAgg(statzAgg statzagg.StatzAgg) {
+	r.StatzAgg = statzAgg
 }
 
 //readerBaseExtn - Base functionality for all dash readers
@@ -50,6 +63,17 @@ func (r *readerBaseExtn) Update(newMpd *MPDtype) (bool, error) {
 			return false, nil
 		}
 		if r.curMpd.PublishTime.After(newMpd.PublishTime) {
+			if r.StatzAgg != nil {
+				values := make([]interface{}, 2)
+				values[0] = r.curMpd.PublishTime
+				values[1] = newMpd.PublishTime
+				r.StatzAgg.PostEventStats(context.TODO(), &statzagg.EventStats{
+					EventClock: time.Now(),
+					ID:         r.ID,
+					Name:       EvtMPDPublishTimeOld,
+					Values:     values,
+				})
+			}
 			return false, fmt.Errorf("MPD.PublishTime MUST move forward. Ignoring")
 		}
 	}
