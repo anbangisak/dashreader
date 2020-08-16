@@ -136,7 +136,7 @@ func TestNManifest(t *testing.T) {
 		}
 	}(ch)
 	N := 10
-	d := 4 * time.Second
+	d := 1 * time.Second
 	if len(mpd.MinimumUpdatePeriod) > 0 {
 		v, err := dashreader.ParseDuration(mpd.MinimumUpdatePeriod)
 		if err != nil {
