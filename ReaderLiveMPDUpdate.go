@@ -65,8 +65,7 @@ func (r *readerLiveMPDUpdate) MakeDASHReaderContext(rdrCtx ReaderContext, stream
 	//Locate the livePoint
 	err := curContext.livePointLocate(r.readerBase, curMpd)
 	if err != nil {
-		//Don't return the newly created context
-		return nil, fmt.Errorf("LivePoint Locate Failed: %w", err)
+		return &curContext, fmt.Errorf("LivePoint Locate Failed: %w", err)
 	}
 	return &curContext, nil
 }
