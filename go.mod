@@ -1,4 +1,4 @@
-module github.com/eswarantg/dashreader
+module github.com/anbangisak/dashreader
 
 go 1.14
 
