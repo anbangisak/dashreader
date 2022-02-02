@@ -1,0 +1,11 @@
+github.com/PaesslerAG/gval v1.1.2 h1:EROKxV4/fAKWb0Qoj7NOxmHZA7gcpjOV9XgiRZMRCUU=
+github.com/PaesslerAG/gval v1.1.2/go.mod h1:Fa8gfkCmUsELXgayr8sfL/sw+VzCVoa03dcOcR/if2w=
+github.com/PaesslerAG/jsonpath v0.1.0/go.mod h1:4BzmtoM/PI8fPO4aQGIusjGxGir2BzcV0grWtFzq1Y8=
+github.com/eswarantg/statzagg v0.0.0-20200802190621-f6d851c08ef8 h1:JuIJVE7nDVLSVL0MsQtwf252r2fTA9uUc1tjvbcJqDU=
+github.com/eswarantg/statzagg v0.0.0-20200802190621-f6d851c08ef8/go.mod h1:9vrlivy+rv535h5oJU/Llh3uG0u+tZBCG0Y9H0Nr0uA=
+github.com/rickb777/date v1.17.0 h1:Qk1MUtTLFfIWYhRaNRyk1t7LmjfkjOEELacQPsoh7Nw=
+github.com/rickb777/date v1.17.0/go.mod h1:b3AnLwjEdg1YWLUFnAd/lUq3JDJmMRXi/Onm8q0zlQg=
+github.com/rickb777/plural v1.4.1 h1:5MMLcbIaapLFmvDGRT5iPk8877hpTPt8Y9cdSKRw9sU=
+github.com/rickb777/plural v1.4.1/go.mod h1:kdmXUpmKBJTS0FtG/TFumd//VBWsNTD7zOw7x4umxNw=
+github.com/tcnksm/go-httpstat v0.2.0 h1:rP7T5e5U2HfmOBmZzGgGZjBQ5/GluWUylujl0tJ04I0=
+github.com/tcnksm/go-httpstat v0.2.0/go.mod h1:s3JVJFtQxtBEBC9dwcdTTXS9xFnM3SXAZwPG41aurT8=
