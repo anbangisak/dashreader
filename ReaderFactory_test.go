@@ -3,7 +3,7 @@ package dashreader_test
 import (
 	"testing"
 
-	"github.com/eswarantg/dashreader"
+	"github.com/anbangisak/dashreader"
 )
 
 func TestFactory(t *testing.T) {

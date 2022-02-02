@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eswarantg/dashreader"
+	"github.com/anbangisak/dashreader"
 	"github.com/eswarantg/statzagg"
 )
 

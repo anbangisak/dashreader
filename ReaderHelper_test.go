@@ -4,7 +4,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/eswarantg/dashreader"
+	"github.com/anbangisak/dashreader"
 )
 
 func TestAdjustURLPath(t *testing.T) {
