@@ -194,6 +194,12 @@ func (t *MPDtype) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	layout.PublishTime = (*xsdDateTime)(&layout.T.PublishTime)
 	return e.EncodeElement(layout, start)
 }
+
+func (t *MPDtype) Done(){
+	// Any cleanup to be done?
+	// if sync.Pool is used, need to call Done()
+}
+
 func (t *MPDtype) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	type T MPDtype
 	var overlay struct {
